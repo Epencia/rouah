@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Adorès Cloud",
+    "slug": "adores-cloud",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/adaptive-logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "assetBundlePatterns": ["**/*", "assets/**/*"],
+    "splash": {
+      "image": "./assets/adaptive-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-logo.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.mandigoentreprise.adorescloud",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favlogo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "aebb5502-8e2d-453e-9961-684dcffc3d32"
+      }
+    },
+    "owner": "serviteur01"
+  }
+}
