@@ -47,7 +47,7 @@ const handleRefresh = () => {
 const getListeMessage  = async () => {
   setIsLoading(true);
  try {
-  const response = await fetch(`https://adores.cloud/api/notification.php?id=${user[0].id}`, {
+  const response = await fetch(`https://adores.cloud/api/notification.php?id=${user.id}`, {
     headers: {
       //'Cache-Control': 'no-cache',
     },
@@ -64,7 +64,7 @@ const getListeMessage  = async () => {
 // liste
 const getListeMessage2  = async () => {
  try {
-  const response = await fetch(`https://adores.cloud/api/notification.php?id=${user[0].id}`, {
+  const response = await fetch(`https://adores.cloud/api/notification.php?id=${user.id}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },
@@ -100,7 +100,7 @@ const getListeMessage2  = async () => {
       // validation
       const ValidationNotification = (notification) =>{
       
-        fetch(`https://adores.cloud/api/validation-notification.php?id=${notification.id}&user=${user[0].id}`,{
+        fetch(`https://adores.cloud/api/validation-notification.php?id=${notification.id}&user=${user.id}`,{
           method:'post',
             header:{
                 'Accept': 'application/json',

@@ -36,11 +36,11 @@ export default function GeoAppareil({ navigation }) {
 
   const getData = async () => {
     try {
-      const resAppareils = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${user[0].matricule}`);
+      const resAppareils = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${user.matricule}`);
       const appareils = await resAppareils.json();
       setDataAppareils(appareils);
 
-      const resFamilles = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${user[0].matricule}`);
+      const resFamilles = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${user.matricule}`);
       const familles = await resFamilles.json();
       setDataFamilles(familles);
     } catch (error) {

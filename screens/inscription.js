@@ -19,14 +19,75 @@ export default function Inscription({navigation}) {
 
   const message = ''; // Remplace par un message d'erreur ou de succès si besoin
 
-  const handleLogin = () => {
-    if (!username || !password) {
-      Alert.alert('Erreur', 'Veuillez remplir tous les champs.');
+  const [visible, setVisible] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const hideDialog = () => setVisible(false);
+
+  const [isSubmitting, setIsSubmitting] = useState(false); // Add a state to track form submission
+  const [errors, setErrors] = useState({}); // Add a state to hold the error messages
+
+
+    const ValidationInscription = () => {
+
+    if (!username || !telephone || !password || !NomPrenom) {
+      setErrors({
+        // Update error state with appropriate error messages
+        username: !username ? "Le champ Nom d'utilisateur est obligatoire" : "",
+        password: !password ? 'Le champ Mot de passe est obligatoire' : '',
+        NomPrenom: !NomPrenom ? 'Le champ Nom et Prénoms est obligatoire' : '',
+        telephone: !telephone ? 'Le champ Téléphone est obligatoire' : '',
+      });
       return;
     }
 
-    // Traitement de connexion (à connecter avec API si besoin)
-    Alert.alert('Connexion', `Utilisateur: ${username}`);
+// Vérifie que l'utilisateur a au moins 4 chiffres
+if (!/^\d{6}$/.test(username)) {
+  Alert.alert("Message", "L'utilisateur doit contenir au moins 6 lettres et chiffres.");
+  return;
+}
+
+    // Vérifie que le mot de passe a exactement 6 chiffres
+if (!/^\d{6}$/.test(password)) {
+  Alert.alert("Message", "Le mot de passe doit contenir exactement 6 chiffres.");
+  return;
+}
+
+// Vérifie que le numéro de téléphone a au moins 10 chiffres
+if (!/^\d{10}$/.test(telephone)) {
+  Alert.alert("Message", "Le numéro de téléphone doit contenir au moins 10 chiffres.");
+  return;
+}
+
+    setIsSubmitting(true); // Set submitting state to true while sending the data
+
+    fetch('https://adores.cloud/api/inscription.php', {
+      method: 'post',
+      headers: {
+        'Accept': 'application/json',
+        'Content-type': 'application/json'
+      },
+      body: JSON.stringify({
+        // We will pass our input data to the server
+        telephone: telephone,
+        nom_prenom: NomPrenom,
+        login: username,
+        mdp: password,
+      })
+    })
+      .then((response) => response.json())
+      .then((responseJson) => {
+        Alert.alert("Message",responseJson);
+        setUsername('');
+        setPassword('');
+        setTelephone('');
+        setNomPrenom('');
+        // Stop the ActivityIndicator
+        setIsSubmitting(false);
+      })
+      .catch((error) => {
+        Alert.alert("Erreur",error);
+        setIsSubmitting(false); // Stop the ActivityIndicator on error
+      });
   };
 
   return (
@@ -57,15 +118,20 @@ export default function Inscription({navigation}) {
           style={styles.input}
           placeholder="Téléphone"
           value={telephone}
-          onChangeText={setTelephone}
+          onChangeText={(text) => {
+          const numericText = text.replace(/[^0-9]/g, '').slice(0, 10);
+          setTelephone(numericText);
+          }}
           autoCapitalize="none"
+          keyboardType="numeric"
+          maxLength={10}
         />
 
         <TextInput
           style={styles.input}
           placeholder="Utilisateur"
           value={username}
-          onChangeText={setUsername}
+          onChangeText={(text) => setUsername(text.replace(/\s/g, ''))}
           autoCapitalize="none"
         />
 
@@ -74,10 +140,15 @@ export default function Inscription({navigation}) {
           placeholder="Mot de passe"
           secureTextEntry
           value={password}
-          onChangeText={setPassword}
+          onChangeText={(text) => {
+          const numericText = text.replace(/[^0-9]/g, '').slice(0, 6);
+          setPassword(numericText);
+          }}
+          keyboardType="numeric"
+          maxLength={6}
         />
 
-        <TouchableOpacity style={styles.btn} onPress={handleLogin}>
+        <TouchableOpacity style={styles.btn} onPress={ValidationInscription}>
           <Text style={styles.buttonText}>S'inscrire</Text>
         </TouchableOpacity>
 

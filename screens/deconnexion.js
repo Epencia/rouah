@@ -31,8 +31,8 @@ export default function Deconnexion({ navigation }) {
             style={styles.emptyImg}
           />
 
-          {Array.isArray(user) && user[0]?.nom_prenom ? (
-            <Text style={styles.emptyTitle}>{user[0].nom_prenom}</Text>
+          {Array.isArray(user) && user?.nom_prenom ? (
+            <Text style={styles.emptyTitle}>{user.nom_prenom}</Text>
           ) : (
             <Text style={styles.emptyTitle}>Déconnexion</Text>
           )}
@@ -55,7 +55,7 @@ export default function Deconnexion({ navigation }) {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => navigation.navigate('Accueil')}>
+            <TouchableOpacity onPress={() => navigation.navigate('BottomTabs')}>
               <View style={styles.btnSecondary}>
                 <Text style={styles.btnSecondaryText}>Annuler</Text>
               </View>

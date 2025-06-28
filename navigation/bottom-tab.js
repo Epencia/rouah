@@ -1,123 +1,101 @@
-import React, { useEffect,useState, useContext } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { View, Text, Image,  StyleSheet, TouchableOpacity, } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { GlobalContext } from '../global/GlobalState';
 import Menu from "../screens/menu";
 import Accueil from "../screens/accueil";
-import ListeContact from "../screens/liste-contact";
 import Geolocalisation from "../screens/geolocalisation";
-import MaFamille from "../screens/famille";
-
+import AlerteSOS from "../screens/alerte-sos";
+import AppStore from "../screens/app-store";
 
 const Tab = createBottomTabNavigator();
 
-
-const CustomHeader = ({navigation}) => {
+const CustomHeader = ({ navigation }) => {
   const [user, setUser] = useContext(GlobalContext);
-  const [count, setCount] = useState([]);
-
-
+  const [count, setCount] = useState(0); // Initialiser comme nombre, pas tableau
 
   useEffect(() => {
+    // Redirection si user est invalide
+    if (!user || (typeof user === 'object' && Object.keys(user).length === 0)) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Connexion' }],
+      });
+      return;
+    }
+
+    // Mettre à jour les notifications
     const updateData = () => {
       getNombreNotification();
     };
-    updateData(); // Appeler la fonction immédiatement au montage
+    updateData();
     const intervalId = setInterval(updateData, 1000);
     return () => clearInterval(intervalId);
+  }, [user, navigation]);
 
-     // Vérifie si user est null, undefined ou objet vide
-  if (!user || (typeof user === 'object' && Object.keys(user).length === 0)) {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Connexion' }],
-    });
-     }
+  // Récupérer le nombre de notifications
+  const getNombreNotification = () => {
+    if (!user?.id) return;
 
-  }, []);
-  
-
-// notfications
-  const getNombreNotification = () =>{
-
-  fetch(`https://adores.cloud/api/nombre-notification.php?id=${user?.[0].id}`,{
-    method:'post',
-      header:{
-          'Accept': 'application/json',
-          'Content-type': 'application/json'
+    fetch(`https://adores.cloud/api/nombre-notification.php?id=${user.id}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
       },
-      
-  })
-  .then((response) => response.json())
-   .then(
-       (result)=>{
-        setCount(result);
-        }
-   )
-   .catch((error)=>{
-    alert(error);
-   });
-  }
-
-
+    })
+      .then((response) => response.json())
+      .then((result) => {
+        // Assumer que result est un nombre ou un objet avec un champ
+        const notificationCount = typeof result === 'number' ? result : result?.count || 0;
+        setCount(notificationCount);
+      })
+      .catch((error) => {
+        console.error('Erreur notification:', error);
+      });
+  };
 
   return (
- 
+    <View style={styles.headerContainer}>
+      <View style={{ flexDirection: 'row', alignItems: 'center',marginRight:80 }}>
+        <Image source={require('../assets/logo.png')} style={styles.avatarImg} />
+        <Text style={styles.headerTitle}>Adorès</Text>
+      </View>
 
-    <View style={{flexDirection: 'row',alignItems: 'center',justifyContent: 'flex-end',marginLeft:10}}>
-    <Image alt="" source={require('../assets/logo.png')} style={styles.avatarImg} />
-    <Text style={{color: '#414d63',fontSize: 20,fontWeight: 'bold',marginRight:80,marginLeft:5}}>Adorès</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
 
-    <TouchableOpacity onPress={() => navigation.navigate('Accueil')}>
-    <Icon name="credit-card" size={24} color="#414d63" style={{marginRight: 15,}} />
-    </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
+          <Icon name="notifications" size={24} color="#414d63" style={styles.icon} />
+          {count > 0 && (
+            <View style={styles.notificationBadge}>
+              <Text style={styles.notificationText}>{count}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
 
-    <TouchableOpacity onPress={() => navigation.navigate('Notifications')}>
-    <Icon name="notifications" size={24} color="#414d63" style={{marginRight: 10,}} />
-    {count && count > 0 && (
-          <View
-          style={{
-            position: 'absolute',
-            top: -5,
-            right: 8,
-            backgroundColor: 'red',
-            borderRadius: 50,
-            width: 15,
-            height: 15,
-            justifyContent: 'center',
-            alignItems: 'center',
-          }}>
-          <Text style={{ color: 'white', fontSize: 8 }}>{count}</Text>
-        </View>
-        )}
-    </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('Déconnexion')}>
+          <Icon name="logout" size={24} color="#414d63" style={styles.icon} />
+        </TouchableOpacity>
 
-    <TouchableOpacity onPress={() => navigation.navigate('Déconnexion')}>
-    <Icon name="logout" size={24} color="#414d63" />
-    </TouchableOpacity>
-    
-
-
-    <TouchableOpacity onPress={() => navigation.navigate('Profil')}>
-<View style={styles.avatar}>
-{user?.[0]?.photo64 ? (
-<Image alt="" source={{ uri: `data:${user[0].type};base64,${user[0].photo64}` }} style={styles.avatarImg} />
-) : (
-<Image alt="" source={require("../assets/user.jpg")} style={styles.avatarImg} />
-  )}
-</View>
-</TouchableOpacity>
-  </View>
-
+        <TouchableOpacity onPress={() => navigation.navigate('Profil')}>
+          <View style={styles.avatar}>
+            {user?.photo64 ? (
+              <Image
+                source={{ uri: `data:${user.type};base64,${user.photo64}` }}
+                style={styles.avatarImg}
+              />
+            ) : (
+              <Image source={require('../assets/user.jpg')} style={styles.avatarImg} />
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 };
 
-
-
-
-export default function BottomTabs({navigation}){
-
+export default function BottomTabs({navigation}) {
   return (
     <Tab.Navigator
       initialRouteName="Accueil"
@@ -126,68 +104,42 @@ export default function BottomTabs({navigation}){
         tabBarInactiveTintColor: '#414d63',
       }}
     >
-      
       <Tab.Screen
         name="Accueil"
         component={Accueil}
         options={({ navigation }) => ({
-          tabBarIcon: ({ color }) => (
-            <Icon name="home" color={color} size={28} />
-          ),
-          headerTitle: () => (
-            <CustomHeader navigation={navigation} />
-
-          ),
+          tabBarIcon: ({ color }) => <Icon name="home" color={color} size={28} />,
+          headerTitle: () => <CustomHeader navigation={navigation} />,
           headerShown: true,
         })}
       />
-
-      
-
       <Tab.Screen
-  name="Diplômes"
-  component={ListeContact}
-  options={({ navigation }) => ({
-    tabBarLabel: 'Diplômes',
-    tabBarIcon: ({ color }) => (
-      <Icon name="school" color={color} size={28} />
-    ),
-    headerTitle: () => <CustomHeader navigation={navigation} />,
-    headerShown: true,
-  })}
-/>
-
-
-
-      <Tab.Screen
-        name="Offices"
-        component={MaFamille}
+        name="Dangers"
+        component={AlerteSOS}
         options={({ navigation }) => ({
-            tabBarLabel: 'Offices',
-          tabBarIcon: ({ color }) => (
-            <Icon name="explore" color={color} size={28} />
-          ),
-          headerTitle: () => (
-            <CustomHeader navigation={navigation} />
-
-          ),
+          tabBarLabel: 'Dangers',
+          tabBarIcon: ({ color }) => <Icon name="flash-on" color={color} size={28} />,
+          headerTitle: () => <CustomHeader navigation={navigation} />,
           headerShown: true,
         })}
       />
-
-
+      <Tab.Screen
+        name="Outils"
+        component={AppStore}
+        options={({ navigation }) => ({
+          tabBarLabel: 'Outils',
+          tabBarIcon: ({ color }) => <Icon name="install-desktop" color={color} size={28} />,
+          headerTitle: () => <CustomHeader navigation={navigation} />,
+          headerShown: true,
+        })}
+      />
       <Tab.Screen
         name="Recherche"
         component={Geolocalisation}
         options={({ navigation }) => ({
-        tabBarLabel: 'Recherche',
-          tabBarIcon: ({ color }) => (
-            <Icon name="search" color={color} size={28} />
-          ),
-          headerTitle: () => (
-            <CustomHeader navigation={navigation} />
-
-          ),
+          tabBarLabel: 'Recherche',
+          tabBarIcon: ({ color }) => <Icon name="search" color={color} size={28} />,
+          headerTitle: () => <CustomHeader navigation={navigation} />,
           headerShown: true,
         })}
       />
@@ -195,14 +147,9 @@ export default function BottomTabs({navigation}){
         name="Espace"
         component={Menu}
         options={({ navigation }) => ({
-            tabBarLabel: 'Espace',
-          tabBarIcon: ({ color }) => (
-            <Icon name="apps" color={color} size={28} />
-          ),
-          headerTitle: () => (
-            <CustomHeader navigation={navigation} />
-
-          ),
+          tabBarLabel: 'Espace',
+          tabBarIcon: ({ color }) => <Icon name="apps" color={color} size={28} />,
+          headerTitle: () => <CustomHeader navigation={navigation} />,
           headerShown: true,
         })}
       />
@@ -211,118 +158,45 @@ export default function BottomTabs({navigation}){
 };
 
 const styles = StyleSheet.create({
-  container: {
-    padding: 24,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-  },
-  balance: {
-    backgroundColor: '#f99027',
-    borderRadius: 24,
-    marginTop: 32,
-    paddingVertical: 20,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  balanceTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  balanceValue: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#fff',
-    marginTop: 8,
-  },
-  send: {
-    marginVertical: 32,
-  },
-  sendTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#000',
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  sendScroll: {
-    marginHorizontal: -8,
-  },
-  sendUser: {
-    paddingHorizontal: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendUserAvatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 9999,
-    marginBottom: 6,
-  },
-  sendUserName: {
-    fontSize: 15,
-    color: '#1e1e1e',
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  header: {
+  headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-  },
-  headerBadge: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#a3a3a3',
-    marginBottom: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   headerTitle: {
-    fontSize: 26,
-    fontWeight: '600',
-    color: '#121212',
+    color: '#414d63',
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginLeft: 5,
   },
-  placeholder: {
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
-    height: 400,
-    marginTop: 0,
-    padding: 0,
+  icon: {
+    marginHorizontal: 10,
   },
-  placeholderInset: {
-    borderWidth: 4,
-    borderColor: '#e5e7eb',
-    borderStyle: 'dashed',
-    borderRadius: 9,
-    flexGrow: 1,
-    flexShrink: 1,
-    flexBasis: 0,
+  notificationBadge: {
+    position: 'absolute',
+    top: -5,
+    right: 5,
+    backgroundColor: 'red',
+    borderRadius: 50,
+    width: 15,
+    height: 15,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationText: {
+    color: 'white',
+    fontSize: 8,
   },
   avatar: {
     position: 'relative',
-    marginLeft:15
   },
   avatarImg: {
     width: 30,
     height: 30,
     borderRadius: 9999,
-    borderWidth:1,
-    borderColor:'gray'
-  },
-  avatarNotification: {
-    position: 'absolute',
-    borderRadius: 9999,
-    borderWidth: 2,
-    borderColor: '#fff',
-    top: 0,
-    right: -2,
-    width: 14,
-    height: 14,
-    backgroundColor: '#d1d5db',
+    borderWidth: 1,
+    borderColor: 'gray',
   },
 });
-

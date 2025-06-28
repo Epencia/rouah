@@ -23,10 +23,10 @@ export default function Profil({navigation}) {
     const [data, setData] = useState([]);
     const [error, setError] = useState(null);
 
-    const [login, setLogin] = useState((user && user[0] && user[0].login) || '');
-    const [mdp, setMdp] = useState((user && user[0] && user[0].mdp) || '');
-    const [email, setEmail] = useState((user && user[0] && user[0].email) || '');
-    const [telephone, setTelephone] = useState((user && user[0] && user[0].telephone) || '');
+    const [login, setLogin] = useState((user && user.login) || '');
+    const [mdp, setMdp] = useState((user && user.mdp) || '');
+    const [email, setEmail] = useState((user && user.email) || '');
+    const [telephone, setTelephone] = useState((user && user.telephone) || '');
 
     // images
     const [photo, setPhoto] = useState(null);
@@ -79,7 +79,7 @@ export default function Profil({navigation}) {
 			},
 			body:JSON.stringify({
 				// we will pass our input data to server
-				matricule: (user && user.length > 0 && user[0].matricule) ? user[0].matricule : '',
+				matricule: (user && user.length > 0 && user.matricule) ? user.matricule : '',
 				login: login,
                 mdp : mdp,
                 email : email,
@@ -119,9 +119,9 @@ export default function Profil({navigation}) {
             />
         ) : (
             // Affichez l'image existante ou un logo par défaut
-            user?.[0]?.photo64 ? (
+            user?.photo64 ? (
                 <Image
-                    source={{ uri: `data:${user[0].type};base64,${user[0].photo64}` }}
+                    source={{ uri: `data:${user.type};base64,${user.photo64}` }}
                     style={styles.image}
                     resizeMode="center" 
                 />
@@ -141,8 +141,8 @@ export default function Profil({navigation}) {
                 </View>
 
                 <View style={styles.infoContainer}>
-                    <Text style={[styles.text, { fontWeight: 300, fontSize: 32 }]}>{Array.isArray(user) && user.length > 0 ? user[0].nom_prenom || '' : ''}</Text>
-                    <Text style={[styles.text, { color: "black", fontSize: 16 }]}>{Array.isArray(user) && user.length > 0 ? user[0].role || '' : ''}</Text>
+                    <Text style={[styles.text, { fontWeight: 300, fontSize: 32 }]}>{Array.isArray(user) && user.length > 0 ? user.nom_prenom || '' : ''}</Text>
+                    <Text style={[styles.text, { color: "black", fontSize: 16 }]}>{Array.isArray(user) && user.length > 0 ? user.role || '' : ''}</Text>
                 </View>
               
         

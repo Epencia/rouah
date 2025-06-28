@@ -16,7 +16,16 @@ import ListeFamille from '../screens/liste-famille';
 import ListeAppareil from '../screens/liste-appareil';
 import ListeContact from '../screens/liste-contact';
 import Geolocalisation from '../screens/geolocalisation';
-import MaFamille from '../screens/famille';
+import AlerteSOS from '../screens/alerte-sos';
+import LoginUser from '../screens/login-user';
+import LoginPass from '../screens/login-pass';
+import DetecteurMagnetique from '../screens/detecteur-magnetique';
+import ZoneDangereuse from '../screens/zone-dangereuse';
+import EditionZone from '../screens/edition-zone';
+import AppStore from '../screens/app-store';
+import DetecteurVitesse from '../screens/detecteur-vitesse';
+import DetecteurParanormal from '../screens/detecteur-paranormal';
+import AlertDetailsScreen from '../screens/AlertDetailsScreen';
 
 
 
@@ -39,11 +48,20 @@ const Routes = () => {
           <Stack.Screen name='Geolocalisation' component={Geolocalisation} options={{ headerShown: true }}/>
           <Stack.Screen name='Edition de famille' component={EditionFamille} options={{headerShown: true}}/>
           <Stack.Screen name='Familles' component={ListeFamille} options={{headerShown: true}}/>
-          <Stack.Screen name='Ma famille' component={MaFamille} options={{headerShown: true}}/>
+          <Stack.Screen name='App store' component={AppStore} options={{headerShown: true}}/>
           <Stack.Screen name='Appareils' component={ListeAppareil} options={{headerShown: true}}/>
           <Stack.Screen name='Contacts' component={ListeContact} options={{headerShown: true}}/>
+          <Stack.Screen name='Edition de zone' component={EditionZone} options={{headerShown: true}}/>
+          <Stack.Screen name='Alerte SOS' component={AlerteSOS} options={{headerShown: true}}/>
+          <Stack.Screen name='Detecteur magnetique' component={DetecteurMagnetique} options={{headerShown: true}}/>
+          <Stack.Screen name='Detecteur paranormal' component={DetecteurParanormal} options={{headerShown: true}}/>
+          <Stack.Screen name='Detecteur de vitesse' component={DetecteurVitesse} options={{headerShown: true}}/>
+          <Stack.Screen name='Zone dangereuse' component={ZoneDangereuse} options={{headerShown: true}}/>
           <Stack.Screen name='BottomTabs' component={BottomTabs} options={{ headerShown: false }}/>
+          <Stack.Screen name='Login user' component={LoginUser} options={{headerShown: true}}/>
+          <Stack.Screen name='Login pass' component={LoginPass} options={{headerShown: true}}/>
           <Stack.Screen name='Déconnexion' component={Deconnexion} options={{headerShown: true}}/>
+          <Stack.Screen name="AlertDetails" component={AlertDetailsScreen} />
 
       </Stack.Navigator>
     </NavigationContainer>

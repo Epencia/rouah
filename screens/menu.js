@@ -18,20 +18,6 @@ const data = [
     src : 'Profil'
   },
   {
-    id: '6',
-    image: 'bag-personal-outline',
-    titre: "FORMATIONS",
-    libelle: "Découvrir nos formations",
-    src : 'Categories'
-  },
-  {
-    id: '7',
-    image: 'school',
-    titre: "DIPLOMES",
-    libelle: "Accéder à nos certificats",
-    src : 'Diplomes'
-  },
-  {
     id: '8',
     image: 'map-marker-radius-outline',
     titre: "LOCALISATION",
@@ -40,17 +26,17 @@ const data = [
   },
   {
     id: '10',
-    image: 'credit-card-minus-outline',
-    titre: "FACTURES",
-    libelle: "Voir la liste des factures",
-    src : 'Factures'
+    image: 'shield-outline',
+    titre: "ZONES DANGEREUSES",
+    libelle: "Définir les zones de dangers",
+    src : 'Zones'
   },
-  {
+   {
     id: '11',
-    image: 'diamond-stone',
-    titre: 'REGISTRE DE CONTROLE',
-    libelle: "Voir le registre de controle",
-    src : 'Registre de controle'
+    image: 'account-cancel-outline',
+    titre: "MENACES",
+    libelle: "Dévoiler les personnes dangereuses",
+    src : 'Zones'
   },
     {
     id: '12',

@@ -51,7 +51,7 @@ return () => clearInterval(intervalId);
 const getPartenaire = async () => {
   setIsLoading(true);
  try {
-  const response = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${user[0].matricule}`, {
+  const response = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${user.matricule}`, {
     headers: {
       //'Cache-Control': 'no-cache',
     },
@@ -67,7 +67,7 @@ const getPartenaire = async () => {
 // liste 
 const getPartenaire2 = async () => {
  try {
-  const response = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${user[0].matricule}`, {
+  const response = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${user.matricule}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },

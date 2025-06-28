@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext  } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,36 +17,119 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Geolocalisation from './geolocalisation';
 import WaveEmitter from './onde';
 import { GlobalContext } from '../global/GlobalState';
+import * as Notifications from 'expo-notifications';
 
 const { width, height } = Dimensions.get('window');
 
 export default function Bienvenue({ navigation }) {
-  
   const isConnected = ConnexionInternet();
   const [matricule, setMatricule] = useState('');
   const [user] = useContext(GlobalContext);
+  const [notification, setNotification] = useState(null);
 
   if (isConnected === null) return null;
 
-  useEffect(() => {
-  const checkConnection = async () => {
-    const connectionStatus = await ConnexionInternet();
-    setIsConnected(connectionStatus);
+  // Function to register for push notifications
+  const registerForPushNotificationsAsync = async () => {
+    try {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        console.log('Permission for notifications not granted');
+        return null;
+      }
+
+      const token = (await Notifications.getExpoPushTokenAsync()).data;
+      return token;
+    } catch (error) {
+      console.error('Error getting push token:', error);
+      return null;
+    }
   };
 
-  checkConnection();
-  fetchMatricule();
-  const interval = setInterval(checkConnection, 5000);
+  // Function to setup notification listeners
+  const setupNotificationListeners = (onNotification, onResponse) => {
+  const notificationListener = Notifications.addNotificationReceivedListener(onNotification);
+  const responseListener = Notifications.addNotificationResponseReceivedListener(onResponse);
+  
+  return () => {
+    notificationListener.remove();
+    responseListener.remove();
+  };
+};
 
-  return () => clearInterval(interval);
-}, []);
+  // Function to send token to server
+  const sendTokenToServer = async (token) => {
+    try {
+      if (!matricule) return;
+      
+      const response = await fetch('https://adores.cloud/api/save-token.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          utilisateur_id: matricule,
+          push_token: token,
+        }),
+      });
+      const result = await response.json();
+      console.log('Token envoyé au serveur:', result);
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi du token:', error);
+    }
+  };
 
- const fetchMatricule = async () => {
+  useEffect(() => {
+    const checkConnection = async () => {
+      const connectionStatus = await ConnexionInternet();
+      setIsConnected(connectionStatus);
+    };
+
+    const fetchMatricule = async () => {
       const storedMatricule = await AsyncStorage.getItem('matricule');
       if (storedMatricule) {
         setMatricule(storedMatricule);
       }
     };
+
+    checkConnection();
+    fetchMatricule();
+    const interval = setInterval(checkConnection, 5000);
+
+    // Setup push notifications
+    registerForPushNotificationsAsync().then(token => {
+      if (token && matricule) {
+        console.log('Push token:', token);
+        sendTokenToServer(token);
+      }
+    });
+
+    // Configure notification listeners
+    const unsubscribe = setupNotificationListeners(
+      (notification) => {
+        setNotification(notification);
+        Alert.alert(
+          notification.request.content.title || 'Notification',
+          notification.request.content.body
+        );
+      },
+      (response) => {
+        console.log('Notification interaction:', response);
+      }
+    );
+
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
+  }, [matricule]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
@@ -71,13 +155,6 @@ export default function Bienvenue({ navigation }) {
             <View style={{ marginRight: 2 }} />
             <TouchableOpacity
               style={styles.appButton2}
-              onPress={() => navigation.navigate('BottomTabs')}
-            >
-              <MaterialCommunityIcons name="book-open-page-variant-outline" size={24} color="#414d63" />
-            </TouchableOpacity>
-            <View style={{ marginRight: 2 }} />
-            <TouchableOpacity
-              style={styles.appButton2}
               onPress={() => navigation.navigate('Connexion')}
             >
               <MaterialCommunityIcons name="login" size={24} color="#414d63" />
@@ -93,44 +170,41 @@ export default function Bienvenue({ navigation }) {
               <Text style={styles.loadingText}>Vérification de la connexion...</Text>
             </View>
           ) : isConnected ? (
-
-          <Geolocalisation />
-            
+            <Geolocalisation navigation={navigation}/>
           ) : (
             <View style={styles.offlineContainer}>
-  <Image 
-    source={require('../assets/images/map.jpg')} // Chemin vers votre image
-    style={styles.backgroundImage}
-    resizeMode="cover"
-  />
-  <View style={styles.overlay}>
-    <View style={styles.statusBox}>
-              <Text style={styles.offlineText}>Vous êtes hors ligne</Text>
-    </View>
-    <WaveEmitter color="#FF3B30" />
-  </View>
-</View>
+              <Image 
+                source={require('../assets/images/map.jpg')}
+                style={styles.backgroundImage}
+                resizeMode="cover"
+              />
+              <View style={styles.overlay}>
+                <View style={styles.statusBox}>
+                  <Text style={styles.offlineText}>Vous êtes hors ligne</Text>
+                </View>
+                <WaveEmitter color="#FF3B30" />
+              </View>
+            </View>
           )}
         </View>
 
-       {/* Footer - Toujours visible */}
-       {!user && (
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Connexion')}
-            style={styles.skipButton}
-          >
-            <Text style={styles.skipText}>CONNEXION ›</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Inscription')}
-            style={styles.nextButton}
-          >
-            <Text style={styles.nextText}>INSCRIPTION ›</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Footer - Toujours visible */}
+        {!user && (
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Connexion')}
+              style={styles.skipButton}
+            >
+              <Text style={styles.skipText}>CONNEXION ›</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Inscription')}
+              style={styles.nextButton}
+            >
+              <Text style={styles.nextText}>INSCRIPTION ›</Text>
+            </TouchableOpacity>
+          </View>
         )}
-
       </View>
     </SafeAreaView>
   );
@@ -184,29 +258,18 @@ const styles = StyleSheet.create({
     marginTop: 20,
     color: '#555',
   },
-  offlineContainer2: {
+  offlineContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  offlineText2: {
-    fontSize: 18,
-    color: '#FF3B30',
-    fontWeight: 'bold',
-  },
-   offlineContainer: {
-    flex: 1,
-    position: 'relative', // Important pour le positionnement absolu de l'image
+    position: 'relative',
   },
   backgroundImage: {
     position: 'absolute',
     width: '100%',
     height: '100%',
-    //opacity: 0.7, // Ajustez l'opacité selon vos besoins
   },
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)', // Léger assombrissement pour mieux voir le texte
+    backgroundColor: 'rgba(0,0,0,0.3)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -214,9 +277,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#DC3545',
     fontWeight: 'bold',
-    //textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    //textShadowOffset: {width: 1, height: 1},
-    //textShadowRadius: 3,
   },
   avatarImg: {
     width: 30,
@@ -240,7 +300,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     backgroundColor: 'transparent',
     zIndex: 10,
-},
+  },
   skipButton: {
     padding: 14,
     backgroundColor: 'white',

@@ -62,7 +62,7 @@ export default function Accueil ({navigation}) {
     // CARTE
 const getCarte = async () => {
   try {
-   const response = await fetch(`https://adores.cloud/api/liste-carte.php?matricule=${user[0].matricule}`, {
+   const response = await fetch(`https://adores.cloud/api/liste-carte.php?matricule=${user.matricule}`, {
      headers: {
        'Cache-Control': 'no-cache',
      },
@@ -149,10 +149,10 @@ const getCarte = async () => {
        <View style={styles.profileContent}>
         
              <TouchableOpacity style={styles.profileAvatar} onPress={() => navigation.navigate('Profil')}>
-              {user?.[0]?.photo64 ? (
+              {user?.photo64 ? (
 
               <Image
-              source={{ uri: `data:${user[0].type};base64,${user[0].photo64}` }}
+              source={{ uri: `data:${user.type};base64,${user.photo64}` }}
               style={styles.profileAvatarImg}/>
               ) : (
               <Image source={require("../assets/user-profile.jpg")} style={styles.profileAvatarImg}/>

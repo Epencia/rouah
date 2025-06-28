@@ -24,7 +24,6 @@ export default function Geolocalisation({ navigation }) {
   const [errorMsg, setErrorMsg] = useState(null);
   const [communes, setCommunes] = useState([]);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [showDetectorSheet, setShowDetectorSheet] = useState(false);
   const [activeTab, setActiveTab] = useState('famille');
   const [searchQuery2, setSearchQuery2] = useState('');
   const [searchQuery3, setSearchQuery3] = useState('');
@@ -364,6 +363,7 @@ export default function Geolocalisation({ navigation }) {
       type: isAutomatic ? 'AUTO_SOS' : 'MANUAL_SOS',
       timestamp: new Date().toISOString(),
     };
+
     try {
       let alerts = JSON.parse(await AsyncStorage.getItem('sos_alerts')) || [];
       alerts.push(sosData);
@@ -374,6 +374,18 @@ export default function Geolocalisation({ navigation }) {
       const json = await response.json();
       console.log('📤 Réponse API (SOS):', json);
 
+      const circle = JSON.parse(await AsyncStorage.getItem('circle')) || [];
+      for (const contact of circle) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: 'Alerte SOS',
+            body: `Alerte déclenchée par ${matricule} à ${sosData.latitude}, ${sosData.longitude}`,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          },
+          to: contact.pushToken,
+        });
+      }
       Vibration.vibrate([500, 500, 500]);
       Alert.alert('Succès', 'Alerte envoyée à vos contacts et enregistrée.');
     } catch (error) {
@@ -384,7 +396,7 @@ export default function Geolocalisation({ navigation }) {
 
   const handleAutomaticSOS = () => {
     Alert.alert(
-      'Danger détecté',
+      'Chute détectée',
       'Voulez-vous envoyer une alerte SOS ?',
       [
         { text: 'Annuler', style: 'cancel' },
@@ -409,13 +421,6 @@ export default function Geolocalisation({ navigation }) {
     item.titre_appareil.toLowerCase().includes(searchQuery4.toLowerCase()) ||
     item.reference_appareil.toLowerCase().includes(searchQuery4.toLowerCase())
   ), [PositionAppareils, searchQuery4]);
-
-  // Liste des détecteurs
-  const detectors = [
-    { name: 'Détecteur de vitesse', icon: 'speedometer', screen: 'Detecteur de vitesse' },
-    { name: 'Détecteur magnétique', icon: 'magnet', screen: 'Detecteur magnetique' },
-    { name: 'Détecteur paranormal', icon: 'ghost', screen: 'Detecteur paranormal' },
-  ];
 
   if (errorMsg) {
     return (
@@ -615,38 +620,6 @@ export default function Geolocalisation({ navigation }) {
         </View>
       </Modal>
 
-      {/* Bottom Sheet pour les détecteurs */}
-      <Modal
-        isVisible={showDetectorSheet}
-        onBackdropPress={() => setShowDetectorSheet(false)}
-        style={styles.bottomSheet}
-        backdropOpacity={0.5}
-      >
-        <View style={styles.bottomSheetContent}>
-          <Text style={styles.detectorSheetTitle}>Sélectionner un détecteur</Text>
-          <FlatList
-            data={detectors}
-            keyExtractor={item => item.name}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.detectorItem}
-                onPress={() => {
-                  setShowDetectorSheet(false);
-                  navigation.navigate(item.screen);
-                }}
-              >
-                <MaterialCommunityIcons name={item.icon} size={30} color="#007bff" />
-                <Text style={styles.detectorItemText}>{item.name}</Text>
-              </TouchableOpacity>
-            )}
-            style={styles.detectorList}
-          />
-          <TouchableOpacity style={styles.closeButton} onPress={() => setShowDetectorSheet(false)}>
-            <Text style={styles.closeButtonText}>Fermer</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
       {/* Boutons flottants alignés à droite */}
       <View style={styles.floatingButtonsContainer}>
         <TouchableOpacity
@@ -659,9 +632,15 @@ export default function Geolocalisation({ navigation }) {
         >
           <Feather name="search" size={24} color="black" />
         </TouchableOpacity>
+         <TouchableOpacity
+          style={styles.floatingButtonMiddle}
+          onPress={() => navigation.navigate("Detecteur de vitesse")}
+        >
+          <Feather name="shield" size={24} color="black" />
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.floatingButtonMiddle}
-          onPress={() => setShowDetectorSheet(true)}
+          onPress={() => navigation.navigate("Detecteur magnetique")}
         >
           <Feather name="activity" size={24} color="black" />
         </TouchableOpacity>
@@ -908,28 +887,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  detectorSheetTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  detectorList: {
-    maxHeight: 200,
-  },
-  detectorItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  detectorItemText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginLeft: 10,
   },
 });

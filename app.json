@@ -7,7 +7,10 @@
     "icon": "./assets/adaptive-logo.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "assetBundlePatterns": ["**/*", "assets/**/*"],
+    "assetBundlePatterns": [
+      "**/*",
+      "assets/**/*"
+    ],
     "splash": {
       "image": "./assets/adaptive-logo.png",
       "resizeMode": "contain",
@@ -22,12 +25,17 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "googleServicesFile": "./android/app/google-services.json",
       "package": "com.mandigoentreprise.adorescloud",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "com.google.android.c2dm.permission.RECEIVE"
       ]
     },
     "web": {
@@ -38,6 +46,9 @@
         "projectId": "aebb5502-8e2d-453e-9961-684dcffc3d32"
       }
     },
-    "owner": "serviteur01"
+    "owner": "serviteur01",
+    "plugins": [
+      "expo-notifications"
+    ]
   }
 }

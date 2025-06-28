@@ -2,7 +2,6 @@ import {StyleSheet,View,FlatList,Image,Text,TouchableOpacity,TextInput,ActivityI
 import React , {useEffect, useState, useContext, useMemo } from 'react';
 import { MaterialCommunityIcons,Feather } from '@expo/vector-icons';
 import { GlobalContext } from '../global/GlobalState';
-import { GlobalCarte } from '../global/GlobalCarte';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
@@ -16,7 +15,6 @@ export default function ListeAppareil({navigation,item}) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const [user, setUser] = useContext(GlobalContext);
-  const [carte, setCarte] = useContext(GlobalCarte);
 
 
   const [refreshing, setRefreshing] = useState(false);
@@ -53,7 +51,7 @@ return () => clearInterval(intervalId);
 const getPartenaire = async () => {
   setIsLoading(true);
  try {
-  const response = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${user[0].matricule}`, {
+  const response = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${user.matricule}`, {
     headers: {
       //'Cache-Control': 'no-cache',
     },
@@ -69,7 +67,7 @@ const getPartenaire = async () => {
 // liste 
 const getPartenaire2 = async () => {
  try {
-  const response = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${user[0].matricule}`, {
+  const response = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${user.matricule}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },

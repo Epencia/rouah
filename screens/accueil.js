@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
-  Text,
+  Text,Alert,
   ScrollView,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   Image,
-  FlatList,
-  Dimensions,
+  FlatList,Linking,
+  Dimensions,Platform,
   ActivityIndicator
 } from 'react-native';
 import { MaterialIcons, FontAwesome, Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,19 +16,27 @@ import { GlobalContext } from '../global/GlobalState';
 const { width } = Dimensions.get('window');
 
 export default function Accueil({ navigation }) {
-  const [inviteEmail, setInviteEmail] = useState('');
+
   const [activeTab, setActiveTab] = useState('members');
-  const [emergencyMode, setEmergencyMode] = useState(false);
-  const [drivingMode, setDrivingMode] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState({
+    membres: false,
+    menaces: false,
+    alertes: false,
+    zones: false,
+  });
+  const [errors, setErrors] = useState({
+    membres: null,
+    menaces: null,
+    alertes: null,
+    zones: null,
+  });
 
   const [user] = useContext(GlobalContext);
   const [membres, setMembres] = useState([]);
   const [zones, setZones] = useState([]);
   const [alertes, setAlertes] = useState([]);
-  const [localisation, setLocalisation] = useState([]);
+  const [menaces, setMenaces] = useState([]);
 
   useEffect(() => {
     if (!user || (typeof user === 'object' && Object.keys(user).length === 0)) {
@@ -41,7 +48,7 @@ export default function Accueil({ navigation }) {
     }
 
     getMembres();
-    getLocalisation();
+    getMenaces();
     getAlertes();
     getZones();
 
@@ -50,63 +57,98 @@ export default function Accueil({ navigation }) {
   }, [user]);
 
   const getMembres = async () => {
-    setIsLoading(true);
+    setIsLoading(prev => ({ ...prev, membres: true }));
+    setErrors(prev => ({ ...prev, membres: null }));
     try {
-      const response = await fetch(`https://adores.cloud/api/membres.php?matricule=${user[0].matricule}`);
+      const response = await fetch(`https://adores.cloud/api/membres.php?matricule=${user.matricule}`);
       const newData = await response.json();
       setMembres(newData);
     } catch (error) {
-      setError(error);
+      setErrors(prev => ({ ...prev, membres: error.message }));
     } finally {
-      setIsLoading(false);
+      setIsLoading(prev => ({ ...prev, membres: false }));
     }
   };
 
-  const getLocalisation = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`https://adores.cloud/api/history-family.php?matricule=${user[0].matricule}`);
-      const newData = await response.json();
-      setLocalisation(newData);
-    } catch (error) {
-      setError(error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const getAlertes = async () => {
-    setIsLoading(true);
+    setIsLoading(prev => ({ ...prev, alertes: true }));
+    setErrors(prev => ({ ...prev, alertes: null }));
     try {
-      const response = await fetch(`https://adores.cloud/api/alertes.php?matricule=${user[0].matricule}`);
+      const response = await fetch(`https://adores.cloud/api/alertes.php?matricule=${user.matricule}`);
       const newData = await response.json();
       setAlertes(newData);
     } catch (error) {
-      setError(error);
+      setErrors(prev => ({ ...prev, alertes: error.message }));
     } finally {
-      setIsLoading(false);
+      setIsLoading(prev => ({ ...prev, alertes: false }));
     }
   };
 
   const getZones = async () => {
-    setIsLoading(true);
+    setIsLoading(prev => ({ ...prev, zones: true }));
+    setErrors(prev => ({ ...prev, zones: null }));
     try {
-      const response = await fetch(`https://adores.cloud/api/zones.php?matricule=${user[0].matricule}`);
+      const response = await fetch(`https://adores.cloud/api/zone-dangereuse.php`);
       const newData = await response.json();
       setZones(newData);
     } catch (error) {
-      setError(error);
+      setErrors(prev => ({ ...prev, zones: error.message }));
     } finally {
-      setIsLoading(false);
+      setIsLoading(prev => ({ ...prev, zones: false }));
     }
   };
 
-  const handleInvite = () => {
-    if (inviteEmail) {
-      console.log("Invitation envoyée à:", inviteEmail);
-      setInviteEmail('');
+    const getMenaces = async () => {
+    setIsLoading(prev => ({ ...prev, menaces: true }));
+    setErrors(prev => ({ ...prev, menaces: null }));
+    try {
+      const response = await fetch(`https://adores.cloud/api/liste-menace.php?matricule=${user.matricule}`);
+      const newData = await response.json();
+      setMenaces(newData);
+    } catch (error) {
+      setErrors(prev => ({ ...prev, menaces: error.message }));
+    } finally {
+      setIsLoading(prev => ({ ...prev, menaces: false }));
     }
   };
+
+
+  const getSuppressionMembre = async (param1) => {
+    try {
+      const response = await fetch(`https://adores.cloud/api/suppression-famille.php?code=${param1}`);
+      const newData = await response.json();
+      Alert.alert("Message",newData);
+    } catch (error) {
+      Alert.alert("Erreur",error);
+    }
+  };
+
+
+// Ouvrir les maps
+const openGoogleMaps = (latitude, longitude) => {
+  // Vérifier que les coordonnées sont valides
+  if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+    Alert.alert("Erreur", "Coordonnées GPS invalides");
+    return;
+  }
+  try {
+    const url = Platform.select({
+      ios: `http://maps.apple.com/?ll=${latitude},${longitude}`,
+      android: `geo:${latitude},${longitude}?q=${latitude},${longitude}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+    });
+    Linking.openURL(url).catch(() => {
+      // Si l'ouverture directe échoue, essayer avec l'URL web
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`)
+        .catch(() => Alert.alert("Erreur", "Impossible d'ouvrir l'application de cartes"));
+    });
+  } catch (error) {
+    Alert.alert("Erreur", "Une erreur s'est produite lors de l'ouverture de la carte");
+  }
+};
+
+
 
   const getStatusColor = (status) => {
     return status === "Oui" ? styles.onlineStatus : styles.offlineStatus;
@@ -118,15 +160,6 @@ export default function Accueil({ navigation }) {
     return styles.lowBattery;
   };
 
-  const getRoleColor = (role) => {
-    return role === "Administrateur" ? styles.adminRole : styles.memberRole;
-  };
-
-  const getScoreColor = (score) => {
-    if (score < 100) return styles.highScore;
-    if (score >= 100) return styles.mediumScore;
-    return styles.lowScore;
-  };
 
   const renderMemberCard = ({ item }) => (
     <View style={styles.card}>
@@ -134,23 +167,19 @@ export default function Accueil({ navigation }) {
         <View style={styles.avatarContainer}>
           {item.photo64 ? (
             <Image 
-              alt="" 
               source={{ uri: `data:${item.type};base64,${item.photo64}` }} 
               style={styles.avatar}
             />
           ) : (
-            <Image alt="" source={require("../assets/logo.png")} style={styles.avatar}/>
+            <Image source={require("../assets/logo.png")} style={styles.avatar}/>
           )}
           <View style={[styles.statusDot, getStatusColor(item.etat_connexion)]} />
         </View>
         <View style={styles.memberInfo}>
           <View style={styles.memberTitleRow}>
             <Text style={styles.memberName}>{item.nom_prenom}</Text>
-            <View style={[styles.roleBadge, getRoleColor(item.role)]}>
-              <Text style={styles.badgeText}>{item.role}</Text>
-            </View>
           </View>
-          <Text style={styles.memberEmail}>Tél : {item.telephone}</Text>
+          <Text style={styles.memberEmail}>{item.role}</Text>
         </View>
       </View>
 
@@ -177,8 +206,8 @@ export default function Accueil({ navigation }) {
       </View>
 
       <View style={styles.cardFooter}>
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]}>
-          <Text style={styles.buttonText}>Modifier</Text>
+        <TouchableOpacity style={[styles.button, styles.dangerButton]} onPress={()=>getSuppressionMembre(item.code_famille)}>
+          <Text style={[styles.buttonText, styles.dangerButtonText]}>Supprimer</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.button, styles.primaryButton]}>
           <Text style={[styles.buttonText, styles.primaryButtonText]}>Localiser</Text>
@@ -191,10 +220,10 @@ export default function Accueil({ navigation }) {
     <View style={styles.card}>
       <View style={styles.cardHeader}>
         <View style={styles.zoneIcon}>
-          <MaterialCommunityIcons name="shield" size={24} color="#10B981" />
+          <MaterialCommunityIcons name="shield" size={24} color="#DC2626" />
         </View>
         <View style={styles.cardHeaderContent}>
-          <Text style={styles.cardTitle}>{item.nom_zone}</Text>
+          <Text style={styles.cardTitle}>{item.nom_zone || item.pays_zone+" , "+item.ville_zone}</Text>
           <Text style={styles.cardSubtitle}>{item.adresse_zone}</Text>
         </View>
       </View>
@@ -204,25 +233,69 @@ export default function Accueil({ navigation }) {
           <MaterialCommunityIcons name="ruler" size={18} color="#6B7280" />
           <Text style={styles.infoLabel}>Rayon: {item.rayon_zone} m</Text>
         </View>
+      </View>
 
-        <Text style={styles.infoLabel}>Membres dans cette zone</Text>
-        {membres.filter(m => m.zones?.includes(item.code_zone)).length > 0 ? (
-          <View style={styles.avatarGroup}>
-            {membres
-              .filter(m => m.zones?.includes(item.code_zone))
-              .map(member => (
-                <Image 
-                  key={member.matricule} 
-                  source={member.photo64 ? 
-                    { uri: `data:${member.type};base64,${member.photo64}` } : 
-                    require("../assets/logo.png")} 
-                  style={styles.smallAvatar} 
-                />
-              ))}
-          </View>
-        ) : (
-          <Text style={styles.emptyText}>Aucun membre dans cette zone</Text>
-        )}
+      <View style={styles.cardFooter}>
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={()=>openGoogleMaps(item.latitude_zone,item.longitude_zone)}>
+          <Text style={styles.buttonText}>Localisation</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, styles.dangerButton]} onPress={()=>Alert.alert("Description",item.observation_zone)}>
+          <Text style={[styles.buttonText, styles.dangerButtonText]}>Observations</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+
+
+  const renderAlertItem = ({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.zoneIcon}>
+          <MaterialCommunityIcons name="account-cancel" size={24} color="#DC2626" />
+        </View>
+        <View style={styles.cardHeaderContent}>
+          <Text style={styles.cardTitle}>{item.nom_prenom} 🚨</Text>
+          <Text style={styles.cardSubtitle}>{item.date || ""} {item.heure || ""}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.infoItem}>
+          <MaterialCommunityIcons name="comma" size={18} color="#6B7280" />
+          <Text style={styles.infoLabel}>Lieu : {item.adresse || item.pays+" , "+item.ville}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardFooter}>
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => { Linking.openURL(`tel:${item.telephone}`); }}>
+          <Text style={styles.buttonText}>📞 Appeler</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.button, styles.dangerButton]} onPress={()=>openGoogleMaps(item.latitude,item.longitude)}>
+          <Text style={[styles.buttonText, styles.dangerButtonText]}>📡 Localiser</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+
+   const renderMenaceCard = ({ item }) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={styles.zoneIcon}>
+          <MaterialCommunityIcons name="account-cancel" size={24} color="#DC2626" />
+        </View>
+        <View style={styles.cardHeaderContent}>
+          <Text style={styles.cardTitle}>{item.identite}</Text>
+          <Text style={styles.cardSubtitle}>{item.telephone || 'Téléphone non défini'}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cardBody}>
+        <View style={styles.infoItem}>
+          <MaterialCommunityIcons name="comma" size={18} color="#6B7280" />
+          <Text style={styles.infoLabel}>Détails : {item.details}</Text>
+        </View>
       </View>
 
       <View style={styles.cardFooter}>
@@ -236,41 +309,16 @@ export default function Accueil({ navigation }) {
     </View>
   );
 
-  const renderAlertItem = ({ item }) => (
-    <View style={styles.alertCard}>
-      <View style={[styles.alertIcon, { backgroundColor: `${item.color}20` }]}>
-        <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
-      </View>
-      <View style={styles.alertContent}>
-        <Text style={styles.alertTitle}>{item.message_alerte}</Text>
-        <View style={styles.alertMeta}>
-          <Text style={styles.alertMember}>{item.nom_prenom}</Text>
-          <Text style={styles.alertTime}>{item.date_alerte} {item.heure_alerte}</Text>
-        </View>
-      </View>
-    </View>
-  );
+  // Vérifier si toutes les requêtes sont en cours de chargement
+  const isAnyLoading = Object.values(isLoading).some(loading => loading);
 
-  if (isLoading) {
+  // Vérifier si toutes les données sont vides et aucune requête n'est en cours
+  const isEmpty = (!membres.length && !zones.length && !alertes.length && !menaces.length) && !isAnyLoading;
+
+  if (isAnyLoading && isEmpty) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3B82F6" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Une erreur est survenue: {error.message}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => {
-          getMembres();
-          getLocalisation();
-          getAlertes();
-          getZones();
-        }}>
-          <Text style={styles.retryButtonText}>Réessayer</Text>
-        </TouchableOpacity>
       </View>
     );
   }
@@ -279,19 +327,24 @@ export default function Accueil({ navigation }) {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <View>
-          <Text style={styles.headerTitle}>Ma Famille</Text>
-          <Text style={styles.headerSubtitle}>
-            {membres.filter(m => m.etat_connexion === "Oui").length} membres connectés
-          </Text>
+  <View style={styles.headerLeft}>
+    {/* Conteneur des 6 cases de code OTP fixe */}
+    <View style={styles.codeContainer}>
+      {user?.matricule.split('').slice(0, 6).map((digit, index) => (
+        <View key={index} style={styles.codeDigit}>
+          <Text style={styles.codeText}>{digit}</Text>
         </View>
-        <View style={styles.headerActions}>
-          <Text style={styles.timeText}>{currentTime.toLocaleTimeString()}</Text>
-          <TouchableOpacity style={styles.iconButton}>
-            <Feather name="clock" size={22} color="#6B7280" />
-          </TouchableOpacity>
-        </View>
-      </View>
+      ))}
+    </View>
+    <View style={styles.headerActions}>
+    <Text style={styles.headerSubtitle}>
+      {membres.filter(m => m.etat_connexion === "Oui").length} membres connectés
+    </Text>
+    <Text style={styles.timeText}>{currentTime.toLocaleTimeString()}</Text>
+    </View>
+  </View>
+  
+</View>
 
       {/* Tabs */}
       <View style={{ flexDirection: 'row', paddingVertical: 0 }}>
@@ -300,7 +353,7 @@ export default function Accueil({ navigation }) {
           showsHorizontalScrollIndicator={false} 
           contentContainerStyle={styles.tabsContainer}
         >
-          {['members', 'zones', 'alertes', 'driving'].map((tab) => (
+          {['members', 'zones', 'alertes', 'menaces'].map((tab) => (
             <TouchableOpacity
               key={tab}
               style={[styles.tab, activeTab === tab && styles.activeTab]}
@@ -310,7 +363,7 @@ export default function Accueil({ navigation }) {
                 {tab === 'members' && 'Membres'}
                 {tab === 'zones' && 'Zones'}
                 {tab === 'alertes' && 'Alertes'}
-                {tab === 'driving' && 'Géolocalisation'}
+                {tab === 'menaces' && 'Menaces'}
               </Text>
             </TouchableOpacity>
           ))}
@@ -322,83 +375,79 @@ export default function Accueil({ navigation }) {
         {activeTab === 'members' && (
           <>
             <View style={styles.inviteCard}>
-              <Text style={styles.sectionTitle}>Inviter un membre</Text>
               <View style={styles.inputGroup}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Email du membre"
-                  value={inviteEmail}
-                  onChangeText={setInviteEmail}
-                  keyboardType="email-address"
-                />
-                <TouchableOpacity style={styles.inviteButton} onPress={handleInvite}>
+                <TouchableOpacity style={styles.inviteButton} onPress={()=>navigation.navigate("Contacts")}>
                   <Feather name="send" size={18} color="white" />
-                  <Text style={styles.inviteButtonText}>Envoyer</Text>
+                  <Text style={styles.inviteButtonText}>Intégrer un membre</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
-            <FlatList
-              data={membres}
-              renderItem={renderMemberCard}
-              keyExtractor={item => item.matricule}
-              scrollEnabled={false}
-              contentContainerStyle={styles.listContainer}
-              ListEmptyComponent={
+            {isLoading.membres ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#3B82F6" />
+              </View>
+            ) : errors.membres ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>Erreur lors du chargement des membres : {errors.membres}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={getMembres}>
+                  <Text style={styles.retryButtonText}>Réessayer</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <FlatList
+                data={membres}
+                renderItem={renderMemberCard}
+                keyExtractor={item => item.matricule}
+                scrollEnabled={false}
+                contentContainerStyle={styles.listContainer}
+                ListEmptyComponent={
                   <View style={styles.emptyState}>
-                    <MaterialCommunityIcons name="users-off" size={48} color="#E5E7EB" />
+                    <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
                     <Text style={styles.emptyText}>Aucun membre</Text>
                   </View>
                 }
-            />
+              />
+            )}
           </>
         )}
 
         {activeTab === 'alertes' && (
           <>
-           <View style={[styles.card, styles.emergencyCard, emergencyMode && styles.emergencyActive]}>
-              <View style={styles.emergencyHeader}>
-                <MaterialCommunityIcons 
-                  name="alert-octagon" 
-                  size={24} 
-                  color={emergencyMode ? "#EF4444" : "#6B7280"} 
-                />
-                <Text style={styles.emergencyTitle}>Mode Urgence</Text>
+            <View style={styles.section}>
+              <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Alertes récentes</Text>
+                <TouchableOpacity>
+                  <Text style={styles.sectionAction}>Voir tout</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={styles.emergencyDescription}>
-                Activez pour partager votre position en temps réel avec votre famille
-              </Text>
-              <TouchableOpacity
-                style={[styles.button, emergencyMode ? styles.dangerButton : styles.secondaryButton]}
-                onPress={() => setEmergencyMode(!emergencyMode)}
-              >
-                <Text style={[styles.buttonText, emergencyMode && styles.dangerButtonText]}>
-                  {emergencyMode ? 'Désactiver' : 'Activer'}
-                </Text>
-              </TouchableOpacity>
+              {isLoading.alertes ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#3B82F6" />
+                </View>
+              ) : errors.alertes ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>Erreur lors du chargement des alertes : {errors.alertes}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={getAlertes}>
+                    <Text style={styles.retryButtonText}>Réessayer</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <FlatList
+                  data={alertes}
+                  renderItem={renderAlertItem}
+                  keyExtractor={item => item.id_geoip}
+                  scrollEnabled={false}
+                  contentContainerStyle={styles.listContainer}
+                  ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                      <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
+                      <Text style={styles.emptyText}>Aucune alerte</Text>
+                    </View>
+                  }
+                />
+              )}
             </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Alertes récentes</Text>
-              <TouchableOpacity>
-                <Text style={styles.sectionAction}>Voir tout</Text>
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={alertes}
-              renderItem={renderAlertItem}
-              keyExtractor={item => item.code_alerte}
-              scrollEnabled={false}
-              contentContainerStyle={styles.listContainer}
-              ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
-                    <Text style={styles.emptyText}>Aucune alerte</Text>
-                  </View>
-                }
-            />
-          </View>
           </>
         )}
 
@@ -406,87 +455,79 @@ export default function Accueil({ navigation }) {
           <>
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Zones de sécurité</Text>
-                <TouchableOpacity style={styles.addButton}>
+                <Text style={styles.sectionTitle}>Zones dangereuses</Text>
+                <TouchableOpacity style={styles.addButton} onPress={()=> navigation.navigate("Edition de zone")}>
                   <Feather name="plus" size={18} color="white" />
                   <Text style={styles.addButtonText}>Ajouter</Text>
                 </TouchableOpacity>
               </View>
-              <FlatList
-                data={zones}
-                renderItem={renderZoneCard}
-                keyExtractor={item => item.code_zone}
-                scrollEnabled={false}
-                contentContainerStyle={styles.listContainer}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
-                    <Text style={styles.emptyText}>Aucune zone définie</Text>
-                  </View>
-                }
-              />
+              {isLoading.zones ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#3B82F6" />
+                </View>
+              ) : errors.zones ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>Erreur lors du chargement des zones : {errors.zones}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={getZones}>
+                    <Text style={styles.retryButtonText}>Réessayer</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <FlatList
+                  data={zones}
+                  renderItem={renderZoneCard}
+                  keyExtractor={item => item.code_zone}
+                  scrollEnabled={false}
+                  contentContainerStyle={styles.listContainer}
+                  ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                      <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
+                      <Text style={styles.emptyText}>Aucune zone définie</Text>
+                    </View>
+                  }
+                />
+              )}
             </View>
           </>
         )}
 
-        {activeTab === 'driving' && (
+        {activeTab === 'menaces' && (
           <>
-            <View style={[styles.card, styles.drivingCard, drivingMode && styles.drivingActive]}>
-              <View style={styles.drivingHeader}>
-                <MaterialCommunityIcons 
-                  name="map-marker-radius-outline" 
-                  size={24} 
-                  color={drivingMode ? "#3B82F6" : "#6B7280"} 
-                />
-                <Text style={styles.drivingTitle}>Suivi de localisation</Text>
-              </View>
-              <Text style={styles.drivingDescription}>
-                💡 Conseil: Pour une meilleure précision, autorisez l'accès à votre localisation et activez le GPS sur votre appareil.
-              </Text>
-              <TouchableOpacity
-                style={[styles.button, drivingMode ? styles.primaryButton : styles.secondaryButton]}
-                onPress={() => setDrivingMode(!drivingMode)}
-              >
-                <Text style={[styles.buttonText, drivingMode && styles.primaryButtonText]}>
-                  {drivingMode ? 'Arrêter le suivi' : 'Commencer le suivi'}
-                </Text>
-              </TouchableOpacity>
-            </View>
 
             <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Historique des positions</Text>
-                <TouchableOpacity>
-                  <Text style={styles.sectionAction}>Voir tout</Text>
+               <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>Menaces</Text>
+                <TouchableOpacity style={styles.addButton} onPress={()=> navigation.navigate("Edition de zone")}>
+                  <Feather name="plus" size={18} color="white" />
+                  <Text style={styles.addButtonText}>Ajouter</Text>
                 </TouchableOpacity>
               </View>
-              <FlatList
-                data={localisation}
-                renderItem={({ item }) => (
-                  <View style={styles.tripCard}>
-                    <View style={styles.tripInfo}>
-                      <View style={styles.tripRoute}>
-                        <Feather name="user" size={16} color="#9CA3AF" />
-                        <Text style={styles.tripLocation}>{item.nom_prenom}</Text>
-                      </View>
-                      <Text style={styles.tripDetails}>{item.derniere_date_localisation} • {item.derniere_heure_localisation}</Text>
+              {isLoading.menaces ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#3B82F6" />
+                </View>
+              ) : errors.menaces ? (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>Erreur lors du chargement : {errors.menaces}</Text>
+                  <TouchableOpacity style={styles.retryButton} onPress={getLocalisation}>
+                    <Text style={styles.retryButtonText}>Réessayer</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <FlatList
+                  data={menaces}
+                  renderItem={renderMenaceCard}
+                  keyExtractor={(item) => item.code}
+                  scrollEnabled={false}
+                  contentContainerStyle={styles.listContainer}
+                  ListEmptyComponent={
+                    <View style={styles.emptyState}>
+                      <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
+                      <Text style={styles.emptyText}>Aucune menace</Text>
                     </View>
-                    <View style={styles.localisationcore}>
-                      <Text style={[styles.scoreText, getScoreColor(item.nombre_geolocalisations)]}>{item.nombre_geolocalisations}</Text>
-                      <Text style={styles.scoreLabel}>/100</Text>
-                    </View>
-                  </View>
-                )}
-                keyExtractor={(item) => item.matricule}
-                scrollEnabled={false}
-                contentContainerStyle={styles.listContainer}
-                ListEmptyComponent={
-                  <View style={styles.emptyState}>
-                    <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
-                    <Text style={styles.emptyText}>Aucune localisation</Text>
-                  </View>
-                }
-              />
+                  }
+                />
+              )}
             </View>
           </>
         )}
@@ -526,6 +567,7 @@ const styles = StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
   timeText: {
     fontSize: 14,
@@ -727,6 +769,8 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   input: {
     flex: 1,
@@ -896,7 +940,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#ECFDF5',
+    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -978,5 +1022,28 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: 'white'
-  }
+  },
+  codeContainer: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  marginBottom: 8,
+  alignItems: 'center',         // Centre verticalement les digits dans la ligne
+  alignSelf: 'center',          // Centre horizontalement le container lui-même (si largeur automatique)
+},
+codeDigit: {
+  width: 47,
+  height: 50,
+  borderWidth: 1,
+  borderColor: '#3B82F6', // Couleur bleue pour les bordures
+  borderRadius: 8,
+  justifyContent: 'center',
+  alignItems: 'center',
+  backgroundColor: '#EFF6FF', // Fond bleu très clair
+  marginHorizontal:6
+},
+codeText: {
+  fontSize: 20,
+  fontWeight: 'bold',
+  color: '#1E40AF', // Couleur bleu foncé pour les chiffres
+},
 });

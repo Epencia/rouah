@@ -26,7 +26,7 @@ export default function GeoInteret({ navigation }) {
 
   const getData = async () => {
     try {
-      const response = await fetch(`https://adores.cloud/api/centre-interet-geoip.php?matricule=${user[0].matricule}`);
+      const response = await fetch(`https://adores.cloud/api/centre-interet-geoip.php?matricule=${user.matricule}`);
       const result = await response.json();
       setData(result);
     } catch (error) {

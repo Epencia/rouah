@@ -1,85 +1,154 @@
-import {StyleSheet,View,FlatList,Image,Text,TouchableOpacity,TextInput,ActivityIndicator,ScrollView,Linking} from 'react-native';
-import React , {useEffect, useState, useContext, useMemo } from 'react';
-import { MaterialCommunityIcons,Feather } from '@expo/vector-icons';
-import { GlobalContext } from '../global/GlobalState';
-import { GlobalCarte } from '../global/GlobalCarte';
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator
+} from 'react-native';
+import { MaterialCommunityIcons, Feather, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Contacts from 'expo-contacts'; // Import manquant ajouté
 
-
-
-export default function ListeContact({navigation}) {
-
-  // liste des categories
+export default function ListeContact({ navigation }) {
+  // États
+  const [contacts, setContacts] = useState([]);
+  const [searchText, setSearchText] = useState('');
+  const [famille, setFamille] = useState([]);
+  const [status, setStatus] = useState('Aucun contact récupéré');
   const [isLoading, setIsLoading] = useState(false);
-  const [data, setData] = useState([]);
   const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  const [user, setUser] = useContext(GlobalContext);
-  
-    const [status, setStatus] = useState('Aucun contact récupéré');
-
-
+  // Rafraîchissement
   const [refreshing, setRefreshing] = useState(false);
+
   const handleRefresh = () => {
-    setRefreshing(true); // Indiquer que le rafraîchissement est en cours
-    getPartenaire(); // Appeler la fonction de récupération des données
-    setRefreshing(false); // Indiquer que le rafraîchissement est terminé
+    setRefreshing(true);
+    getListeContact();
+    getFamilleContact();
+    setRefreshing(false);
   };
 
-useEffect(()=>{
-// Exécuter la fonction avec cache
-const delay = 10000; // Définir le délai à 1 minute
-getPartenaire(); 
-// Définir un intervalle pour exécuter la fonction sans cache toutes les 1 minute
-const intervalId = setInterval(getPartenaire2, delay);
-// Nettoyer l'intervalle lorsque le composant est démonté ou lorsque l'effet se réexécute
-return () => clearInterval(intervalId);
-},[])
+  // Effet initial
+  useEffect(() => {
+    const delay = 10000;
+    getFamilleContact();
+    getListeContact();
+    const intervalId = setInterval(getListeContact2, delay);
+    return () => clearInterval(intervalId);
+  }, []);
 
+  // Filtrage des contacts
+  const filteredContacts = useMemo(() => {
+    if (!searchText) return contacts;
+    return contacts.filter(item =>
+      item.nom_prenom_contact.toLowerCase().includes(searchText.toLowerCase()) ||
+      item.telephone_contact.toLowerCase().includes(searchText.toLowerCase())
+    );
+  }, [contacts, searchText]);
 
+  const cleanPhoneNumber = (phone) => {
+    if (!phone || typeof phone !== 'string') return '';
+    return phone.replace(/\D/g, '');
+  };
 
-// liste
-const getPartenaire = async () => {
-  setIsLoading(true);
+  // Charger les contacts
+  const getListeContact = async () => {
+    setIsLoading(true);
+    try {
+      const matricule = await AsyncStorage.getItem('matricule');
+      if (!matricule) {
+        throw new Error('Matricule non trouvé');
+      }
+      const response = await fetch(`https://adores.cloud/api/liste-contact.php?matricule=${matricule}`, {
+        //headers: { 'Cache-Control': 'no-cache' },
+      });
+      const newData = await response.json();
+      setContacts(newData);
+    } catch (error) {
+      setError(error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // liste 
+const getListeContact2 = async () => {
  try {
-  const response = await fetch(`https://adores.cloud/api/liste-contact.php?matricule=${user[0].matricule}`, {
-    headers: {
-      //'Cache-Control': 'no-cache',
-    },
-  });
-  const newData = await response.json();
-  setData(newData);
- setIsLoading(false);
-} catch (error) {
-  setIsLoading(false);
-  setError(error);
-}
-}
-// liste 
-const getPartenaire2 = async () => {
- try {
-  const response = await fetch(`https://adores.cloud/api/liste-contact.php?matricule=${user[0].matricule}`, {
+ const matricule = await AsyncStorage.getItem('matricule');
+    if (!matricule) {  // Vérifier que le matricule existe
+      throw new Error('Matricule non trouvé');
+    }
+  const response = await fetch(`https://adores.cloud/api/liste-contact.php?matricule=${matricule}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },
   });
   const newData = await response.json();
-  setData(newData);
+  setContacts(newData);
 } catch (error) {
   setError(error);
 }
 }
 
-// contacts
+  // Valider la sélection
+  const handleValidate = async (phoneNumber) => {
+    if (!phoneNumber) {
+      Alert.alert('Aucun contact sélectionné');
+      return;
+    }
+    try {
+      const matricule = await AsyncStorage.getItem('matricule');
+      if (!matricule) {
+        throw new Error('Matricule non trouvé');
+      }
+
+      const response = await fetch('https://adores.cloud/api/edition-famille.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          demandeur: matricule,
+          receveur: phoneNumber
+        }),
+      });
+
+      const result = await response.json();
+      Alert.alert('Message', result.message || result);
+      getFamilleContact(); // Rafraîchir la liste après modification
+
+    } catch (err) {
+      Alert.alert('Erreur', err.message || 'Échec de l\'opération');
+    }
+  };
+
+  // Charger les contacts existants
+  const getFamilleContact = async () => {
+    try {
+      const matricule = await AsyncStorage.getItem('matricule');
+      if (!matricule) return;
+
+      const response = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${matricule}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      setFamille(data);
+    } catch (error) {
+      console.error('Erreur chargement contacts existants:', error);
+    }
+  };
+
+  // Récupérer et envoyer les contacts
   const getAndSendContacts = async () => {
     try {
       const matricule = await AsyncStorage.getItem('matricule');
-              if (!matricule) {
-                console.warn('⚠️ Matricule non trouvé.');
-                return;
-              }
-      // Demander la permission d'accéder aux contacts
+      if (!matricule) {
+        console.warn('⚠️ Matricule non trouvé.');
+        return;
+      }
+
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
         setStatus('Permission refusée');
@@ -87,13 +156,11 @@ const getPartenaire2 = async () => {
         return;
       }
 
-      // Récupérer les contacts
       const { data } = await Contacts.getContactsAsync({
         fields: [Contacts.Fields.Name, Contacts.Fields.PhoneNumbers],
       });
 
       if (data.length > 0) {
-        // Formater les contacts pour l'API
         const formattedContacts = data.map(contact => ({
           name: contact.name || 'Inconnu',
           phoneNumbers: contact.phoneNumbers
@@ -101,20 +168,10 @@ const getPartenaire2 = async () => {
             : [],
         }));
 
-        // Créer une chaîne pour afficher les contacts dans une alerte
-        const contactList = formattedContacts
-          .map(contact => 
-            `${contact.name}:\n${contact.phoneNumbers.length > 0 ? contact.phoneNumbers.join('\n') : 'Aucun numéro'}`
-          )
-          .join('\n\n');
-
-        // Envoyer les contacts à l'API avec fetch
         const response = await fetch('https://adores.cloud/api/contact.php', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ contacts: formattedContacts,proprietaire: matricule }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contacts: formattedContacts, proprietaire: matricule }),
         });
 
         const responseData = await response.json();
@@ -124,6 +181,7 @@ const getPartenaire2 = async () => {
 
         setStatus(`Succès : ${response.status} - ${responseData.message || 'Contacts envoyés'}`);
         Alert.alert('Succès', 'Contacts sauvegardés avec succès');
+        getListeContact(); // Rafraîchir la liste après ajout
       } else {
         setStatus('Aucun contact trouvé');
         Alert.alert('Info', 'Aucun contact trouvé sur l\'appareil');
@@ -135,253 +193,231 @@ const getPartenaire2 = async () => {
     }
   };
 
+  // Rendu d'un contact
+  const renderItem = ({ item }) => {
+    const initials = item.nom_prenom_contact
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 3);
 
-  // api recherche
-  const searchItems = useMemo(() => {
-    return () => {
-    const filteredData = data.filter(item =>
-      item.nom_prenom_contact.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.telephone_contact.toLowerCase().includes(searchTerm.toLowerCase()) 
-    );
-    return filteredData;
-};
-}, [data, searchTerm]);
-// api recherche
-
-// Erreur et Chargement --debut--
-if (isLoading) {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-      <ActivityIndicator size="large" color="#5500dc" />
-    </View>
-  );
-}
-
-if (error) {
-  return (
-    <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center',backgroundColor:'white' }}>
-      <MaterialCommunityIcons color="#266EF1" name="access-point-off" size={150}/>
-      <Text style={{ fontSize: 18,marginRight:10,marginLeft:10,marginBottom:10}}>
-      Pas de connexion internet !
-      </Text>
-      <TouchableOpacity onPress={handleRefresh} style={{ backgroundColor: '#0099cc',paddingVertical: 10,paddingHorizontal: 20,borderRadius: 5,}}>
-        <Text style={{ color: 'white',fontSize: 16,fontWeight: 'bold',textAlign: 'center', }}>Réessayer</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-// Erreur et Chargement --fin--
-
-return (
-  <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-
-{data.length > 0 ? (
-<View style={styles.searchBar}>
-<Feather name="search" size={24} color="gray" style={styles.searchIcon} />
-<TextInput
- style={styles.input}
- placeholder="Rechercher..."
- onChangeText={text => setSearchTerm(text)}
-value={searchTerm}
-/>
-</View>
-) : (
-  <View style={{marginTop: 25, marginRight:15,marginLeft:15,
-      elevation:5,backgroundColor:'white',borderRadius:6,marginBottom:5,
-    }}>
-    <Text style={{marginTop: 10, marginRight:15,marginLeft:15,
-      marginBottom:15,color:'#888',textAlign:'center'
-    }}>Aucune donnée disponible</Text>
-    </View>
-  )}
-
- 
-
-    <FlatList
-       data={searchTerm ? searchItems() : data}
-      keyExtractor={(item) => item.code_contact}
-      renderItem={({item}) => (
-        <View style={styles.experienceItem}>
-         
-        <TouchableOpacity>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                 <MaterialCommunityIcons style={styles.image} color="#0A84FF" name="contacts-outline" size={50} />
-
-        <View style={styles.textContainer}>
-          <Text style={styles.text}>{item.nom_prenom_contact? item.nom_prenom_contact : "Aucun résultat"}</Text>
-          <View style={styles.dataContainer}>
-            <Text style={styles.dataText}>{item.telephone_contact ? item.telephone_contact : "Aucun résultat"}</Text>
+    return (
+      <TouchableOpacity
+        style={[
+          styles.contactItem,
+          famille.some(f => cleanPhoneNumber(f.telephone) === cleanPhoneNumber(item.telephone_contact)) && 
+            styles.selectedContact,
+        ]}
+        onPress={() => handleValidate(item.telephone_contact)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.contactInfo}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
+          <View style={styles.contactDetails}>
+            <Text style={styles.name}>{item.nom_prenom_contact}</Text>
+            <Text style={styles.phone}>
+              {item.telephone_contact || 'Aucun numéro'}
+            </Text>
+          </View>
+          {famille.some(f => cleanPhoneNumber(f.telephone) === cleanPhoneNumber(item.telephone_contact)) && (
+            <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+          )}
         </View>
-        </View>
-
       </TouchableOpacity>
+    );
+  };
+
+  // Erreur et Chargement
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+        <ActivityIndicator size="large" color="#5500dc" />
       </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' }}>
+        <MaterialCommunityIcons color="#266EF1" name="access-point-off" size={150} />
+        <Text style={{ fontSize: 18, marginRight: 10, marginLeft: 10, marginBottom: 10 }}>
+          Pas de connexion internet !
+        </Text>
+        <TouchableOpacity 
+          onPress={handleRefresh} 
+          style={{ backgroundColor: '#0099cc', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 5 }}
+        >
+          <Text style={{ color: 'white', fontSize: 16, fontWeight: 'bold', textAlign: 'center' }}>Réessayer</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Barre de recherche */}
+      {contacts.length > 0 ? (
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color="#8E8E93" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Rechercher..."
+            value={searchText}
+            onChangeText={setSearchText}
+            placeholderTextColor="#8E8E93"
+          />
+        </View>
+      ) : (
+        <View style={styles.emptyMessage}>
+          <Text style={styles.emptyText}>Aucune donnée disponible</Text>
+        </View>
       )}
-    />
 
-    <TouchableOpacity
-            style={styles.floatingButtonRight}
-            onPress={getAndSendContacts}
-          >
-            <Feather name="refresh-cw" size={24} color="white" />
-          </TouchableOpacity>
+      {/* Liste */}
+      <FlatList
+        data={filteredContacts}
+        renderItem={renderItem}
+        keyExtractor={item => item.code_contact}
+        refreshing={refreshing}
+        onRefresh={handleRefresh}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Ionicons name="people-outline" size={48} color="#C7C7CC" />
+            <Text>{searchText ? 'Aucun résultat' : 'Aucun contact'}</Text>
+          </View>
+        }
+      />
 
-  </SafeAreaView>
-);
-}
+      <TouchableOpacity
+        style={styles.floatingButtonRight}
+        onPress={getAndSendContacts}
+      >
+        <Feather name="refresh-cw" size={24} color="white" />
+      </TouchableOpacity>
+    </SafeAreaView>
+  );
+};
 
+// Styles
 const styles = StyleSheet.create({
-container: {
-  flex: 1,
-  backgroundColor: 'white', // Fond blanc
-  padding: 16,
-},
-searchBar: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginBottom: 16,
-  backgroundColor: 'white', // Fond blanc pour la barre de recherche
-  borderRadius: 8,
-  borderWidth: 1,
-  borderColor: 'gray',
-},
-searchIcon: {
-  padding: 8,
-},
-input: {
-  flex: 1,
-  height: 40,
-},
-listItem: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginBottom: 10,
-  borderRadius: 8, // Bordures arrondies
-  backgroundColor: 'white', // Fond gris clair
-  padding: 16,
-  borderWidth: 1,
-  borderColor: '#ccc',
-},
-image: {
-  width: 50,
-  height: 50,
-  borderRadius: 25,
-  marginRight: 16,
-},
-textContainer: {
-  flex: 1,
-},
-text: {
-  fontSize: 16,
-},
-dataText: {
-  fontSize: 14,
-  color: 'gray',
-},
-dataContainer: {
-  flexDirection: 'row',
-  alignItems: 'center',
-},
-icon: {
-  marginRight: 8,
-},
-followButton: {
-  backgroundColor: '#007BFF',
-  paddingVertical: 6,
-  paddingHorizontal: 16,
-  borderRadius: 20,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-followingButton: {
-  backgroundColor: '#ccc',
-},
-followButtonText: {
-  color: 'white',
-},
-followingButtonText: {
-  color: '#333',
-},
-experienceItem: {
-  marginBottom: 10,
-  borderRadius: 8,
-  borderWidth: 1,
-  borderColor: '#ccc',
-  padding:12,
-},
-followButton2: {
-  backgroundColor: 'white',
-  borderColor:'#007BFF',
-  borderWidth:1,
-  paddingVertical: 6,
-  paddingHorizontal: 16,
-  borderRadius: 20,
-  alignItems: 'center',
-  justifyContent: 'center',
-},
-followButtonText2: {
-  color: '#007BFF',
-},
-// OVERLAY
-   overlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+  container: {
+    flex: 1,
     backgroundColor: '#fff',
+    padding: 16,
+  },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-    elevation: 3,
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
   },
-  footer: {
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
+  title: {
+    fontSize: 17,
+    fontWeight: '600',
   },
-  btn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  validateBtn: {
+    backgroundColor: '#007AFF',
+    padding: 8,
     borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    backgroundColor: '#0A84FF',
-    borderColor: '#0A84FF',
-    height: 50,
-    //marginRight:10
   },
-   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    backgroundColor: '#3C64B1', // Couleur Hostinger / personnalisée
-    borderColor: '#3C64B1',
-    height: 50,
+  disabledBtn: {
+    backgroundColor: '#ccc',
   },
-  buttonText: {
+  validateText: {
     color: '#fff',
-    fontSize: 14,
+    fontWeight: '500',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 12,
+  },
+  searchInput: {
+    flex: 1,
+    height: 40,
+    color: '#000',
+  },
+  contactItem: {
+    padding: 15,
+    marginVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  selectedContact: {
+    backgroundColor: '#E8F3FF',
+    borderColor: '#007AFF',
+  },
+  contactInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  avatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  avatarText: {
+    color: '#fff',
     fontWeight: 'bold',
-    marginLeft:5
+  },
+  contactDetails: {
+    flex: 1,
+  },
+  name: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  phone: {
+    fontSize: 14,
+    color: '#888',
+    marginTop: 2,
+  },
+  loading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  empty: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 40,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    margin: 20,
+    fontSize: 16,
+    textAlign: 'center',
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: '#007AFF',
+    padding: 12,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '500',
   },
   floatingButtonRight: {
     position: 'absolute',
