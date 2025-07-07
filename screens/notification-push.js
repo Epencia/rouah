@@ -39,7 +39,7 @@ export default function NotificationPush() {
         console.log('Push Token:', token);
 
         // Envoyer le token au serveur avec utilisateur_id
-        fetch('https://adores.cloud/api/save-token.php', {
+        fetch('https://rouah.net/api/save-token.php', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

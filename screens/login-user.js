@@ -44,7 +44,7 @@ export default function LoginUser({navigation}) {
 
     try {
       // Effectuer une validation du login et mot de passe ici
-      const response = await fetch('https://adores.cloud/api/connexion.php', {
+      const response = await fetch('https://rouah.net/api/connexion.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -63,7 +63,7 @@ export default function LoginUser({navigation}) {
     }
               // Rediriger ou stocker token
               setUser(data[0]);
-              navigation.navigate("Accueil");
+              navigation.navigate("BottomTabs");
             } else {
               Alert.alert('Erreur', data || 'Identifiants incorrects');
             }
@@ -80,11 +80,12 @@ export default function LoginUser({navigation}) {
 
       <StatusBar backgroundColor="white" barStyle="dark-content" />
       <View style={styles.inner}>
-        <Text style={styles.title}>Adorès Cloud</Text>
+        <Text style={styles.title}>Rouah</Text>
 
         <Image
-          source={require('../assets/logo.png')} // Remplace par ton chemin réel
+          source={require('../assets/logo-original.png')} // Remplace par ton chemin réel
           style={styles.logo}
+          resizeMode="contain"
         />
 
         <Text style={styles.message}>Espace de connexion</Text>
@@ -109,6 +110,8 @@ export default function LoginUser({navigation}) {
           secureTextEntry={!showmdp}
           value={mdp}
           onChangeText={setMdp}
+          maxLength={6}
+          keyboardType="numeric"
         />
         <TouchableOpacity
                 style={styles.mdpIconContainer}
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   button: {
     width: '100%',
     padding: 14,
-    backgroundColor: '#3C64B1', // Couleur Hostinger / personnalisée
+    backgroundColor: '#403b3b', // Couleur Hostinger / personnalisée
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 20,
@@ -198,7 +201,7 @@ const styles = StyleSheet.create({
    btn: {
     width: '100%',
     padding: 14,
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#fa4447',
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 20,
@@ -208,7 +211,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   link: {
-    color: '#3C64B1',
+    color: '#403b3b',
     marginBottom: 15,
     textAlign: 'center',
     fontWeight:'bold'

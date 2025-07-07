@@ -1,339 +1,534 @@
-import React, { useState, useEffect, useContext } from 'react';
-import {
-  View,
-  Text,
+import React, { useRef, useState, useEffect, useContext } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  TouchableOpacity, 
+  ActivityIndicator, 
+  Dimensions,
+  ScrollView,
+  Alert,
   Image,
   StatusBar,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  ActivityIndicator,
-  Alert
+  Vibration
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { ConnexionInternet } from '../global/network/internet';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
+import * as Sensors from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Geolocalisation from './geolocalisation';
-import WaveEmitter from './onde';
+import Modal from 'react-native-modal';
 import { GlobalContext } from '../global/GlobalState';
-import * as Notifications from 'expo-notifications';
-
-const { width, height } = Dimensions.get('window');
 
 export default function Bienvenue({ navigation }) {
-  const isConnected = ConnexionInternet();
-  const [matricule, setMatricule] = useState('');
+  const [address, setAddress] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [count, setCount] = useState(0);
+  const [location, setLocation] = useState(null);
+  const [isModalVisible, setModalVisible] = useState(false);
+  const [countdown, setCountdown] = useState(10);
+  const countdownRef = useRef(null);
   const [user] = useContext(GlobalContext);
-  const [notification, setNotification] = useState(null);
 
-  if (isConnected === null) return null;
+  const apps = [
+    { id: '1', name: 'Annonces', src:"Annonces", icon: '📢', color: '#1DB954', notifications: count > 0 ? count : '0' },
+    { id: '2', name: 'Zones dangereuses', src:"Zones dangereuses", icon: '⚠️', color: '#E1306C', notification: '' },
+    { id: '3', name: 'Publier une annonce', src:"Edition d'annonce", icon: '📱', color: '#25D366' },
+    { id: '4', name: 'Alerte SOS', src:"Alerte SOS", icon: '🆘', color: '#FF0000' },
+    { id: '5', name: 'Localisations', src:"Geolocalisation", icon: '🗺️', color: '#4285F4' },
+  ];
 
-  // Function to register for push notifications
-  const registerForPushNotificationsAsync = async () => {
-    try {
-      const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      let finalStatus = existingStatus;
-      
-      if (existingStatus !== 'granted') {
-        const { status } = await Notifications.requestPermissionsAsync();
-        finalStatus = status;
-      }
-      
-      if (finalStatus !== 'granted') {
-        console.log('Permission for notifications not granted');
-        return null;
-      }
-
-      const token = (await Notifications.getExpoPushTokenAsync()).data;
-      return token;
-    } catch (error) {
-      console.error('Error getting push token:', error);
-      return null;
-    }
+  const toggleTheme = () => {
+    setIsDarkMode(!isDarkMode);
   };
 
-  // Function to setup notification listeners
-  const setupNotificationListeners = (onNotification, onResponse) => {
-  const notificationListener = Notifications.addNotificationReceivedListener(onNotification);
-  const responseListener = Notifications.addNotificationResponseReceivedListener(onResponse);
-  
-  return () => {
-    notificationListener.remove();
-    responseListener.remove();
-  };
-};
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
 
-  // Function to send token to server
-  const sendTokenToServer = async (token) => {
-    try {
-      if (!matricule) return;
-      
-      const response = await fetch('https://adores.cloud/api/save-token.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          utilisateur_id: matricule,
-          push_token: token,
-        }),
-      });
-      const result = await response.json();
-      console.log('Token envoyé au serveur:', result);
-    } catch (error) {
-      console.error('Erreur lors de l\'envoi du token:', error);
+    return () => clearInterval(timer);
+  }, []);
+
+  const time = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const date = currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setError('Permission de localisation refusée');
+          setLoading(false);
+          return;
+        }
+
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+        
+        const addresses = await Location.reverseGeocodeAsync(currentLocation.coords);
+        
+        if (addresses.length > 0) {
+          const addr = addresses[0];
+          setAddress({
+            street: addr.street || 'Rue inconnue',
+            city: addr.city || addr.region || 'Ville inconnue',
+            country: addr.country || 'Pays inconnu',
+            fullAddress: `${addr.country || ''}, ${addr.city || addr.region || ''}, ${addr.street || ''}`
+          });
+        }
+      } catch (err) {
+        setError('En attente de la position...');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const colors = {
+    dark: {
+      gradient: ['#0f2027', '#203a43', '#2c5364'],
+      text: '#fff',
+      textSecondary: 'rgba(255, 255, 255, 0.8)',
+      textTertiary: 'rgba(255, 255, 255, 0.7)',
+      cardBg: 'rgba(255, 255, 255, 0.1)',
+      error: 'rgba(255, 100, 100, 0.9)',
+      buttonBorder: 'rgba(255, 255, 255, 0.3)',
+      loginButton: 'rgba(255, 255, 255, 0.2)',
+      signupButton: 'rgba(74, 144, 226, 0.6)',
+      statusBar: 'light',
+    },
+    light: {
+      gradient: ['#f5f7fa', '#e4e8f0', '#d8e1e8'],
+      text: '#333',
+      textSecondary: '#555',
+      textTertiary: '#666',
+      cardBg: 'rgba(255, 255, 255, 0.7)',
+      error: '#d32f2f',
+      buttonBorder: 'rgba(0, 0, 0, 0.1)',
+      loginButton: 'rgba(255, 255, 255, 0.8)',
+      signupButton: 'rgba(74, 144, 226, 0.8)',
+      statusBar: 'dark',
     }
   };
 
   useEffect(() => {
-    const checkConnection = async () => {
-      const connectionStatus = await ConnexionInternet();
-      setIsConnected(connectionStatus);
+    const getNombreNotification = () => {
+      fetch(`https://rouah.net/api/nombre-annonce.php`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
+          setCount(notificationCount);
+        })
+        .catch((error) => {
+          console.error('Erreur notification:', error);
+        });
     };
 
-    const fetchMatricule = async () => {
-      const storedMatricule = await AsyncStorage.getItem('matricule');
-      if (storedMatricule) {
-        setMatricule(storedMatricule);
+    const intervalId = setInterval(getNombreNotification, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    let subscription;
+    
+    const checkAcceleration = async ({ x, y, z }) => {
+      const acceleration = Math.sqrt(x * x + y * y + z * z);
+      if (acceleration > 2.5) {
+        try {
+          const currentLoc = location || await Location.getCurrentPositionAsync({});
+          setLocation(currentLoc);
+          startCountdown();
+        } catch {
+          Alert.alert('Attention', 'Alerte SOS non disponible - GPS indisponible');
+        }
       }
     };
 
-    checkConnection();
-    fetchMatricule();
-    const interval = setInterval(checkConnection, 5000);
+    Sensors.Accelerometer.setUpdateInterval(100);
+    subscription = Sensors.Accelerometer.addListener(checkAcceleration);
+    
+    return () => subscription?.remove();
+  }, [location]);
 
-    // Setup push notifications
-    registerForPushNotificationsAsync().then(token => {
-      if (token && matricule) {
-        console.log('Push token:', token);
-        sendTokenToServer(token);
+  const startCountdown = () => {
+    setModalVisible(true);
+    setCountdown(10);
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          clearInterval(countdownRef.current);
+          setModalVisible(false);
+          sendSOS(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const cancelCountdown = () => {
+    clearInterval(countdownRef.current);
+    setModalVisible(false);
+    setCountdown(10);
+  };
+
+  const sendSOS = async (isAutomatic = false) => {
+    let currentLocation = location;
+    if (!currentLocation) {
+      try {
+        currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+      } catch (err) {
+        Alert.alert('Erreur', 'Impossible d\'obtenir votre position. Veuillez vérifier votre connexion GPS.');
+        return;
       }
-    });
+    }
 
-    // Configure notification listeners
-    const unsubscribe = setupNotificationListeners(
-      (notification) => {
-        setNotification(notification);
-        Alert.alert(
-          notification.request.content.title || 'Notification',
-          notification.request.content.body
-        );
-      },
-      (response) => {
-        console.log('Notification interaction:', response);
-      }
-    );
+    const matricule = await AsyncStorage.getItem('matricule');
+    if (!matricule) {
+      Alert.alert('Erreur', 'Matricule non configuré. Veuillez vous connecter.');
+      return;
+    }
 
-    return () => {
-      clearInterval(interval);
-      unsubscribe();
+    const userId = await AsyncStorage.getItem('userId');
+    const pushToken = await AsyncStorage.getItem('pushToken');
+    
+    const sosData = {
+      userId,
+      latitude: currentLocation.coords.latitude,
+      longitude: currentLocation.coords.longitude,
+      matricule,
+      type: isAutomatic ? 'AUTO_SOS' : 'MANUAL_SOS',
+      timestamp: new Date().toISOString(),
     };
-  }, [matricule]);
+
+    try {
+      let alerts = JSON.parse(await AsyncStorage.getItem('sos_alerts')) || [];
+      alerts.push(sosData);
+      await AsyncStorage.setItem('sos_alerts', JSON.stringify(alerts));
+
+      const url = `https://rouah.net/api/position.php?latitude=${sosData.latitude}&longitude=${sosData.longitude}&matricule=${matricule}`;
+      const response = await fetch(url);
+      const json = await response.json();
+      
+      if (json.success) {
+        Vibration.vibrate([500, 500, 500]);
+        Alert.alert('Succès', 'Alerte envoyée à vos contacts et enregistrée.');
+      } else {
+        throw new Error(json.message || 'Erreur serveur');
+      }
+    } catch (error) {
+      Alert.alert('Erreur', `Échec de l'envoi: ${error.message}`);
+      //console.error('Erreur SOS:', error);
+    }
+  };
+
+  const currentColors = isDarkMode ? colors.dark : colors.light;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-      <StatusBar backgroundColor="#fff" barStyle="dark-content" />
-      <View style={styles.container}>
-        {/* Header - Toujours visible */}
-        <View style={styles.header}>
-          <View style={styles.headerLogo}>
+    <LinearGradient
+      colors={currentColors.gradient}
+      style={styles.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+    >
+      <StatusBar backgroundColor="transparent" barStyle={currentColors.statusBar} />
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+
+        <Modal isVisible={isModalVisible} backdropOpacity={0.7}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Envoi de l'alerte SOS</Text>
+            <Text style={styles.modalCountdown}>{countdown}</Text>
+            <Text style={styles.modalText}>L'alerte sera envoyée dans {countdown} secondes</Text>
+            <TouchableOpacity style={styles.cancelButton} onPress={cancelCountdown}>
+              <Text style={styles.cancelButtonText}>Annuler</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
+        
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.topSection}>
+            {loading ? (
+              <ActivityIndicator size="small" color={currentColors.text} style={styles.loading} />
+            ) : error ? (
+              <Text style={[styles.errorText, { color: currentColors.error }]}>{error}</Text>
+            ) : (
+              <View style={[styles.addressContainer, { backgroundColor: currentColors.cardBg }]}>
+                <Text style={[styles.addressText, { color: currentColors.text }]} numberOfLines={1} ellipsizeMode="tail">
+                  {address?.fullAddress}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.header}>
+            <Text style={[styles.date, { color: currentColors.textSecondary }]}>{date}</Text>
+            <Text style={[styles.time, { color: currentColors.text }]}>{time}</Text>
+            <TouchableOpacity 
+              style={[styles.themeToggle, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
+              onPress={toggleTheme}
+            >
+              <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
+            </TouchableOpacity>
             <Image
-              source={require('../assets/logo.png')}
-              style={styles.avatarImg}
+              source={require('../assets/logo-original.png')}
+              style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.logoText}>Adorès Cloud</Text>
           </View>
-          <View style={styles.headerButtons}>
-            <TouchableOpacity
-              style={styles.appButton2}
-              onPress={() => navigation.navigate('Gemini')}
-            >
-              <MaterialCommunityIcons name="chat" size={24} color="#414d63" />
-            </TouchableOpacity>
-            <View style={{ marginRight: 2 }} />
-            <TouchableOpacity
-              style={styles.appButton2}
-              onPress={() => navigation.navigate('Connexion')}
-            >
-              <MaterialCommunityIcons name="login" size={24} color="#414d63" />
-            </TouchableOpacity>
-          </View>
-        </View>
 
-        {/* Contenu principal */}
-        <View style={styles.mainContent}>
-          {isConnected === null ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#0A84FF" />
-              <Text style={styles.loadingText}>Vérification de la connexion...</Text>
-            </View>
-          ) : isConnected ? (
-            <Geolocalisation navigation={navigation}/>
-          ) : (
-            <View style={styles.offlineContainer}>
-              <Image 
-                source={require('../assets/images/map.jpg')}
-                style={styles.backgroundImage}
-                resizeMode="cover"
-              />
-              <View style={styles.overlay}>
-                <View style={styles.statusBox}>
-                  <Text style={styles.offlineText}>Vous êtes hors ligne</Text>
+          <View style={styles.appList}>
+            {apps.map((app) => (
+              <TouchableOpacity 
+                key={app.id} 
+                style={[styles.appItem, { backgroundColor: currentColors.cardBg }]} 
+                onPress={() => navigation.navigate(app.src)}
+              >
+                <View style={[styles.appIcon, { backgroundColor: app.color }]}>
+                  <Text style={styles.iconText}>{app.icon}</Text>
+                  {app.notifications && (
+                    <View style={styles.notificationBadge}>
+                      <Text style={styles.notificationBadgeText}>{app.notifications}</Text>
+                    </View>
+                  )}
                 </View>
-                <WaveEmitter color="#FF3B30" />
-              </View>
-            </View>
-          )}
-        </View>
-
-        {/* Footer - Toujours visible */}
-        {!user && (
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Connexion')}
-              style={styles.skipButton}
-            >
-              <Text style={styles.skipText}>CONNEXION ›</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Inscription')}
-              style={styles.nextButton}
-            >
-              <Text style={styles.nextText}>INSCRIPTION ›</Text>
-            </TouchableOpacity>
+                <View style={styles.appTextContainer}>
+                  <Text style={[styles.appName, { color: currentColors.text }]}>{app.name}</Text>
+                  {app.notification && (
+                    <Text style={[styles.notification, { color: currentColors.textTertiary }]}>{app.notification}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
-        )}
-      </View>
-    </SafeAreaView>
+        </ScrollView>
+
+        <View style={styles.footer}>
+          <TouchableOpacity 
+            style={[
+              styles.authButton, 
+              { 
+                backgroundColor: currentColors.loginButton,
+                borderColor: currentColors.buttonBorder
+              }
+            ]}
+            onPress={() => navigation.navigate(user?.matricule ? 'BottomTabs' : 'Connexion')}
+          >
+            <Text style={[styles.authButtonText, { color: currentColors.text }]}>{user?.matricule ? 'Menu' : 'Connexion'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.authButton, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
+            onPress={() => navigation.navigate('Inscription')}
+          >
+            <Text style={[styles.authButtonText, { color: currentColors.text }]}>Inscription</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
+const { width, height } = Dimensions.get('window');
+
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
   container: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-    elevation: 3,
-  },
-  headerLogo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    marginLeft: 10
-  },
-  logoText: {
-    color: '#414d63',
-    fontSize: 20,
-    fontWeight: 'bold',
-    marginLeft: 8
-  },
-  mainContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 20,
-    color: '#555',
-  },
-  offlineContainer: {
     flex: 1,
     position: 'relative',
   },
-  backgroundImage: {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-  },
-  overlay: {
+  gradient: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    width: width,
+    height: height,
+  },
+  themeToggle: {
+    position: 'absolute',
+    top: 10,
+    right: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  offlineText: {
+  themeToggleDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  themeToggleLight: {
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  themeToggleText: {
     fontSize: 20,
-    color: '#DC3545',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 40,
+  },
+  topSection: {
+    width: '100%',
+    marginTop: 5,
+  },
+  header: {
+    alignItems: 'center',
+    marginTop: 15,
+    marginBottom: 15,
+  },
+  date: {
+    fontSize: 18,
+    marginBottom: 5,
+  },
+  time: {
+    fontSize: 40,
+    fontWeight: '200',
+    marginBottom: 10,
+  },
+  addressContainer: {
+    width: '100%',
+    paddingHorizontal: 15,
+    borderRadius: 15,
+    paddingVertical: 8,
+    marginTop: 5,
+  },
+  addressText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  loading: {
+    marginTop: 10,
+  },
+  appList: {
+    width: '100%',
+    bottom: 0,
+    top: -30,
+  },
+  appItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 15,
+    marginVertical: 5,
+    borderRadius: 15,
+  },
+  appIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconText: {
+    fontSize: 20,
+  },
+  notificationBadge: {
+    position: 'absolute',
+    right: -5,
+    top: -5,
+    backgroundColor: 'red',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  notificationBadgeText: {
+    color: 'white',
+    fontSize: 12,
     fontWeight: 'bold',
   },
-  avatarImg: {
-    width: 30,
-    height: 30,
-    borderRadius: 9999,
-    borderWidth: 1,
-    borderColor: 'gray'
+  appTextContainer: {
+    marginLeft: 15,
+    flex: 1,
   },
-  headerButtons: {
-    flexDirection: 'row',
+  appName: {
+    fontSize: 18,
+    fontWeight: '500',
   },
-  appButton2: {
-    padding: 8,
+  notification: {
+    fontSize: 12,
+    marginTop: 2,
   },
-  buttonContainer: {
+  footer: {
     position: 'absolute',
-    bottom: 0,
+    bottom: 25,
+    left: 20,
+    right: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingHorizontal: 24,
-    paddingVertical: 15,
-    backgroundColor: 'transparent',
-    zIndex: 10,
   },
-  skipButton: {
-    padding: 14,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    elevation: 5,
+  authButton: {
     flex: 1,
-    marginRight: 10,
+    paddingVertical: 12,
+    borderRadius: 25,
+    borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
-  nextButton: {
-    padding: 14,
-    backgroundColor: '#0A84FF',
-    borderRadius: 8,
-    flex: 1,
-    marginLeft: 10,
+  authButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  logo: {
+    width: 120,
+    height: 100,
+    marginBottom: 20,
+    borderRadius: 10,
+  },
+  modalContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
     alignItems: 'center',
-    elevation: 5,
+    marginHorizontal: 20,
   },
-  skipText: {
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ff3333',
+    marginBottom: 10,
+  },
+  modalCountdown: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#ff3333',
+    marginBottom: 10,
+  },
+  modalText: {
+    fontSize: 16,
     color: '#333',
-    fontWeight: 'bold',
+    marginBottom: 20,
+    textAlign: 'center',
   },
-  nextText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  statusBox: {
-    marginTop: 10,
+  cancelButton: {
+    backgroundColor: '#ff3333',
+    borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 20,
-    borderRadius: 100,
-    width: '80%',
-    alignItems: 'center',
-    backgroundColor: 'white',
+  },
+  cancelButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
   },
 });

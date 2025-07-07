@@ -65,7 +65,7 @@ export default function LoginPass({ navigation }) {
         throw new Error('Matricule non trouvé. Veuillez vous connecter.');
       }
 
-      const response = await fetch('https://adores.cloud/api/connexion.php', {
+      const response = await fetch('https://rouah.net/api/connexion.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login: matricule, mdp: enteredPin }),
@@ -158,7 +158,7 @@ export default function LoginPass({ navigation }) {
       >
         <View style={styles.content}>
           <Image
-            source={require('../assets/logo.png')}
+            source={require('../assets/logo-original.png')}
             style={styles.logo}
             resizeMode="contain"
           />

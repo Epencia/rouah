@@ -414,7 +414,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   thresholdButton: {
-    backgroundColor: '#007aff',
+    backgroundColor: '#2c2c2e',
     width: 50,
     height: 50,
     borderRadius: 25,
@@ -428,7 +428,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   calibrateButton: {
-    backgroundColor: '#007aff',
+    backgroundColor: '#2c2c2e',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,

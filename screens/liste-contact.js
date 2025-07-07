@@ -64,7 +64,7 @@ export default function ListeContact({ navigation }) {
       if (!matricule) {
         throw new Error('Matricule non trouvé');
       }
-      const response = await fetch(`https://adores.cloud/api/liste-contact.php?matricule=${matricule}`, {
+      const response = await fetch(`https://rouah.net/api/liste-contact.php?matricule=${matricule}`, {
         //headers: { 'Cache-Control': 'no-cache' },
       });
       const newData = await response.json();
@@ -83,7 +83,7 @@ const getListeContact2 = async () => {
     if (!matricule) {  // Vérifier que le matricule existe
       throw new Error('Matricule non trouvé');
     }
-  const response = await fetch(`https://adores.cloud/api/liste-contact.php?matricule=${matricule}`, {
+  const response = await fetch(`https://rouah.net/api/liste-contact.php?matricule=${matricule}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },
@@ -107,7 +107,7 @@ const getListeContact2 = async () => {
         throw new Error('Matricule non trouvé');
       }
 
-      const response = await fetch('https://adores.cloud/api/edition-famille.php', {
+      const response = await fetch('https://rouah.net/api/edition-famille.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +131,7 @@ const getListeContact2 = async () => {
       const matricule = await AsyncStorage.getItem('matricule');
       if (!matricule) return;
 
-      const response = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${matricule}`);
+      const response = await fetch(`https://rouah.net/api/liste-famille.php?matricule=${matricule}`);
       if (!response.ok) return;
       const data = await response.json();
       setFamille(data);
@@ -168,7 +168,7 @@ const getListeContact2 = async () => {
             : [],
         }));
 
-        const response = await fetch('https://adores.cloud/api/contact.php', {
+        const response = await fetch('https://rouah.net/api/contact.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ contacts: formattedContacts, proprietaire: matricule }),
@@ -366,7 +366,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#fa4447',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 30,
     right: 20,
-    backgroundColor: '#007bff',
+    backgroundColor: '#fa4447',
     width: 50,
     height: 50,
     borderRadius: 25,

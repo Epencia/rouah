@@ -7,7 +7,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Modal from 'react-native-modal';
-import WaveEmitter from './onde';
 
 // Dimensions de l'écran
 const { width, height } = Dimensions.get('window');
@@ -25,12 +24,7 @@ export default function Geolocalisation({ navigation }) {
   const [communes, setCommunes] = useState([]);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const [showDetectorSheet, setShowDetectorSheet] = useState(false);
-  const [activeTab, setActiveTab] = useState('famille');
-  const [searchQuery2, setSearchQuery2] = useState('');
   const [searchQuery3, setSearchQuery3] = useState('');
-  const [searchQuery4, setSearchQuery4] = useState('');
-  const [DataInteret, setDataInteret] = useState([]);
-  const [PositionAppareils, setPositionAppareils] = useState([]);
   const [PositionFamilles, setPositionFamilles] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState(null);
   const [searchedLocation, setSearchedLocation] = useState(null);
@@ -75,42 +69,9 @@ export default function Geolocalisation({ navigation }) {
     }
   };
 
-  // Personnes ayant les mêmes intérêts
-  const getPersonneInteret = async () => {
-    const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      console.warn('⚠️ Veuillez vous connecter pour accéder à cette fonctionnalité.');
-      return;
-    }
-    try {
-      const response = await fetch(`https://adores.cloud/api/liste-menace.php?matricule=${matricule}`);
-      const result = await response.json();
-      setDataInteret(result);
-      setActiveTab('interets');
-      setShowBottomSheet(true);
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les données.');
-      console.error(error);
-    }
-  };
+
 
   // Appareils et familles
-  const getPositionAppareil = async () => {
-    const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      Alert.alert('⚠️', 'Veuillez vous connecter pour accéder à cette fonctionnalité.');
-      return;
-    }
-    try {
-      const resAppareils = await fetch(`https://adores.cloud/api/liste-appareil.php?matricule=${matricule}`);
-      const appareils = await resAppareils.json();
-      setPositionAppareils(appareils);
-      setActiveTab('appareils');
-      setShowBottomSheet(true);
-    } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les données.');
-    }
-  };
 
   const getPositionFamille = async () => {
     const matricule = await AsyncStorage.getItem('matricule');
@@ -119,10 +80,9 @@ export default function Geolocalisation({ navigation }) {
       return;
     }
     try {
-      const resFamilles = await fetch(`https://adores.cloud/api/liste-famille.php?matricule=${matricule}`);
+      const resFamilles = await fetch(`https://rouah.net/api/liste-famille.php?matricule=${matricule}`);
       const familles = await resFamilles.json();
       setPositionFamilles(familles);
-      setActiveTab('famille');
       setShowBottomSheet(true);
     } catch (error) {
       Alert.alert('Erreur', 'Impossible de charger les données.');
@@ -131,7 +91,7 @@ export default function Geolocalisation({ navigation }) {
 
   const afficherLocalisation = async (id) => {
     try {
-      const res = await fetch(`https://adores.cloud/api/geoip-recherche.php?matricule=${encodeURIComponent(id)}`);
+      const res = await fetch(`https://rouah.net/api/geoip-recherche.php?matricule=${encodeURIComponent(id)}`);
       const data = await res.json();
       const parsedData = data.map(loc => ({
         ...loc,
@@ -175,7 +135,7 @@ export default function Geolocalisation({ navigation }) {
       return;
     }
     try {
-      const response = await fetch(`https://adores.cloud/api/zone-dangereuse.php`);
+      const response = await fetch(`https://rouah.net/api/zone-dangereuse.php`);
       const data = await response.json();
       setZoneDangereuse(data);
     } catch (error) {
@@ -369,7 +329,7 @@ export default function Geolocalisation({ navigation }) {
       alerts.push(sosData);
       await AsyncStorage.setItem('sos_alerts', JSON.stringify(alerts));
 
-      const url = `https://adores.cloud/api/position.php?latitude=${sosData.latitude}&longitude=${sosData.longitude}&matricule=${matricule}`;
+      const url = `https://rouah.net/api/position.php?latitude=${sosData.latitude}&longitude=${sosData.longitude}&matricule=${matricule}`;
       const response = await fetch(url);
       const json = await response.json();
       console.log('📤 Réponse API (SOS):', json);
@@ -395,20 +355,13 @@ export default function Geolocalisation({ navigation }) {
   };
 
   // Filtrer les données
-  const searchItems2 = useMemo(() => () => DataInteret.filter(item =>
-    item.identite.toLowerCase().includes(searchQuery2.toLowerCase()) ||
-    item.details.toLowerCase().includes(searchQuery2.toLowerCase())
-  ), [DataInteret, searchQuery2]);
+
 
   const searchItems3 = useMemo(() => () => PositionFamilles.filter(item =>
     item.nom_prenom.toLowerCase().includes(searchQuery3.toLowerCase()) ||
     item.telephone.toLowerCase().includes(searchQuery3.toLowerCase())
   ), [PositionFamilles, searchQuery3]);
 
-  const searchItems4 = useMemo(() => () => PositionAppareils.filter(item =>
-    item.titre_appareil.toLowerCase().includes(searchQuery4.toLowerCase()) ||
-    item.reference_appareil.toLowerCase().includes(searchQuery4.toLowerCase())
-  ), [PositionAppareils, searchQuery4]);
 
   // Liste des détecteurs
   const detectors = [
@@ -496,13 +449,6 @@ export default function Geolocalisation({ navigation }) {
         <View style={styles.statusBox}>
           <Text style={[currentCommune ? styles.statusText : styles.statusTextError]}>{statusMessage}</Text>
         </View>
-        <TouchableOpacity onLongPress={startCountdown}>
-          {ZoneDangereuse.length > 0 ? (
-            <WaveEmitter color="#FF3B30" />
-          ) : (
-            <WaveEmitter />
-          )}
-        </TouchableOpacity>
       </View>
 
       {/* Modal pour alerte SOS */}
@@ -525,52 +471,20 @@ export default function Geolocalisation({ navigation }) {
         backdropOpacity={0.5}
       >
         <View style={styles.bottomSheetContent}>
-          <View style={styles.tabContainer}>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'famille' && styles.activeTab]}
-              onPress={() => setActiveTab('famille')}
-            >
-              <Text style={[styles.tabText, activeTab === 'famille' && styles.tabActiveText]}>Familles</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'appareils' && styles.activeTab]}
-              onPress={() => setActiveTab('appareils')}
-            >
-              <Text style={[styles.tabText, activeTab === 'appareils' && styles.tabActiveText]}>Appareils</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.tab, activeTab === 'interets' && styles.activeTab]}
-              onPress={() => setActiveTab('interets')}
-            >
-              <Text style={[styles.tabText, activeTab === 'interets' && styles.tabActiveText]}>Menaces</Text>
-            </TouchableOpacity>
-          </View>
           <TextInput
             style={styles.searchInput}
-            placeholder={`Rechercher ${activeTab === 'famille' ? 'une famille' : activeTab === 'appareils' ? 'un appareil' : 'une menace'}...`}
-            value={activeTab === 'famille' ? searchQuery3 : activeTab === 'appareils' ? searchQuery4 : searchQuery2}
-            onChangeText={text => {
-              if (activeTab === 'famille') setSearchQuery3(text);
-              else if (activeTab === 'appareils') setSearchQuery4(text);
-              else setSearchQuery2(text);
+            placeholder={`Rechercher un membre`}
+            value={searchQuery3}
+            onChangeText={text => {setSearchQuery3(text);
             }}
           />
           <FlatList
-            data={
-              activeTab === 'famille'
-                ? (searchQuery3 ? searchItems3() : PositionFamilles)
-                : activeTab === 'appareils'
-                ? (searchQuery4 ? searchItems4() : PositionAppareils)
-                : (searchQuery2 ? searchItems2() : DataInteret)
-            }
-            keyExtractor={item => item.matricule || item.code_appareil || item.code}
+            data={searchQuery3 ? searchItems3() : PositionFamilles}
+            keyExtractor={item => item.matricule}
             renderItem={({ item }) => (
               <TouchableOpacity
                 style={styles.eventItem}
-                onPress={() => {
-                  if (activeTab === 'famille') afficherLocalisation(item.matricule);
-                  if (activeTab === 'appareils') afficherLocalisation(item.code_appareil);
-                  if (activeTab === 'interets') Alert.alert('A lire', item.details);
+                onPress={() => {afficherLocalisation(item.matricule);
                 }}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -580,8 +494,6 @@ export default function Geolocalisation({ navigation }) {
                         source={{ uri: `data:${item.type};base64,${item.photo64}` }}
                         style={styles.markerImage}
                       />
-                    ) : activeTab === 'appareils' ? (
-                      <MaterialCommunityIcons color="blue" name="laptop" size={35} />
                     ) : (
                       <Image
                         source={require('../assets/user.jpg')}
@@ -591,17 +503,9 @@ export default function Geolocalisation({ navigation }) {
                   </View>
                   <View style={styles.userInfo}>
                     <Text style={styles.eventTitle}>
-                      {item.nom_prenom || item.titre_appareil || item.identite}
+                      {item.nom_prenom}
                     </Text>
-                    {activeTab === 'famille' ? (
                       <Text style={styles.eventDescription}>Tel : {item.telephone}</Text>
-                    ) : activeTab === 'appareils' ? (
-                      <Text style={styles.eventDescription}>{item.reference_appareil}</Text>
-                    ) : (
-                      <>
-                        <Text style={styles.eventDescription}>{item.details}</Text>
-                      </>
-                    )}
                   </View>
                 </View>
               </TouchableOpacity>
@@ -653,8 +557,6 @@ export default function Geolocalisation({ navigation }) {
           style={styles.floatingButtonMiddle}
           onPress={() => {
             getPositionFamille();
-            getPositionAppareil();
-            getPersonneInteret();
           }}
         >
           <Feather name="search" size={24} color="black" />
@@ -667,7 +569,7 @@ export default function Geolocalisation({ navigation }) {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.floatingButtonMiddle}
-          onPress={() => navigation.navigate("Zone dangereuse")}
+          onPress={() => navigation.navigate("Zones dangereuses")}
         >
           <Feather name="shield" size={24} color="black" />
         </TouchableOpacity>

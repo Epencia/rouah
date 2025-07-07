@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Adorès Cloud",
-    "slug": "adores-cloud",
+    "name": "Rouah",
+    "slug": "rouah",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/adaptive-logo.png",
@@ -26,7 +26,7 @@
       },
       "edgeToEdgeEnabled": true,
       "googleServicesFile": "./android/app/google-services.json",
-      "package": "com.mandigoentreprise.adorescloud",
+      "package": "com.mandigoentreprise.rouah",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
@@ -35,7 +35,10 @@
         "NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "com.google.android.c2dm.permission.RECEIVE"
+        "com.google.android.c2dm.permission.RECEIVE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK",
+        "android.permission.FOREGROUND_SERVICE"
       ]
     },
     "web": {
@@ -43,12 +46,24 @@
     },
     "extra": {
       "eas": {
-        "projectId": "aebb5502-8e2d-453e-9961-684dcffc3d32"
+        "projectId": "8b74f350-58f4-4c6c-b308-738040a6846d"
       }
     },
     "owner": "serviteur01",
     "plugins": [
-      "expo-notifications"
-    ]
+      "expo-notifications",
+      [
+        "expo-background-fetch",
+        {
+          "minimumInterval": 15,
+          "stopOnTerminate": false,
+          "startOnBoot": true
+        }
+      ]
+    ],
+    "notification": {
+      "icon": "./assets/favlogo.png",
+      "color": "#ffffff"
+    }
   }
 }

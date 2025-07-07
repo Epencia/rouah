@@ -19,7 +19,7 @@ const { width, height } = Dimensions.get('window');
 // Constantes
 const SCREEN_WIDTH = width;
 const SCREEN_HEIGHT = height;
-const API_URL = 'https://adores.cloud/api/zone-dangereuse.php';
+const API_URL = 'https://rouah.net/api/zone-dangereuse.php';
 const MODAL_DEBOUNCE_TIME = 5000; // 5 secondes entre chaque modal
 const ALARM_SOUND = require('../assets/audio/signal-alert.wav');
 
@@ -477,9 +477,6 @@ export default function ZoneDangereuse({navigation}) {
         <TouchableOpacity style={styles.refreshButtonTop} onPress={refreshPosition}>
           <Feather name="map-pin" size={28} color="white" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.refreshButton} onPress={()=> navigation.navigate("Edition de zone")}>
-          <Feather name="edit" size={28} color="white" />
-        </TouchableOpacity>
       </View>
 
       {/* Modal personnalisé */}
@@ -588,7 +585,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
   },
    refreshButtonTop: {
-    backgroundColor: '#007aff',
+    backgroundColor: '#fa4447',
     width: 60,
     height: 60,
     borderRadius: 30,

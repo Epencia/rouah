@@ -47,7 +47,7 @@ const handleRefresh = () => {
 const getListeMessage  = async () => {
   setIsLoading(true);
  try {
-  const response = await fetch(`https://adores.cloud/api/notification.php?id=${user.id}`, {
+  const response = await fetch(`https://rouah.net/api/notification.php?id=${user.id}`, {
     headers: {
       //'Cache-Control': 'no-cache',
     },
@@ -64,7 +64,7 @@ const getListeMessage  = async () => {
 // liste
 const getListeMessage2  = async () => {
  try {
-  const response = await fetch(`https://adores.cloud/api/notification.php?id=${user.id}`, {
+  const response = await fetch(`https://rouah.net/api/notification.php?id=${user.id}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },
@@ -79,7 +79,7 @@ const getListeMessage2  = async () => {
 // In des mobile money
     // suppression
     const SuppressionNotification = (arg1,arg2) =>{
-      fetch(`https://adores.cloud/api/suppression-notification.php?id=${arg1}&user=${arg2}`,{
+      fetch(`https://rouah.net/api/suppression-notification.php?id=${arg1}&user=${arg2}`,{
         method:'post',
           header:{
               'Accept': 'application/json',
@@ -100,7 +100,7 @@ const getListeMessage2  = async () => {
       // validation
       const ValidationNotification = (notification) =>{
       
-        fetch(`https://adores.cloud/api/validation-notification.php?id=${notification.id}&user=${user.id}`,{
+        fetch(`https://rouah.net/api/validation-notification.php?id=${notification.id}&user=${user.id}`,{
           method:'post',
             header:{
                 'Accept': 'application/json',

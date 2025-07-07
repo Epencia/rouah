@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LoginPass from './login-pass';
 import LoginUser from './login-user';
+import {GlobalContext} from '../global/GlobalState';
 
 export default function Connexion({ navigation }) {
   const [hasMatricule, setHasMatricule] = useState(null);
+  const [user] = useContext(GlobalContext);
 
   useEffect(() => {
     // Vérifier la présence du matricule dans AsyncStorage
@@ -40,7 +42,7 @@ export default function Connexion({ navigation }) {
   }
 
   // Rendre LoginPass si matricule existe, sinon LoginUser
-  return hasMatricule ? <LoginPass navigation={navigation} /> : <LoginUser navigation={navigation} />;
+  return user?.matricule ? <LoginPass navigation={navigation} /> : <LoginUser navigation={navigation} />;
 }
 
 const styles = StyleSheet.create({

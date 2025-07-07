@@ -60,7 +60,7 @@ if (!/^\d{10}$/.test(telephone)) {
 
     setIsSubmitting(true); // Set submitting state to true while sending the data
 
-    fetch('https://adores.cloud/api/inscription.php', {
+    fetch('https://rouah.net/api/inscription.php', {
       method: 'post',
       headers: {
         'Accept': 'application/json',
@@ -94,11 +94,12 @@ if (!/^\d{10}$/.test(telephone)) {
     <SafeAreaView style={styles.container}>
       <StatusBar backgroundColor="white" barStyle="dark-content" />
       <View style={styles.inner}>
-        <Text style={styles.title}>Adorès Cloud</Text>
+        <Text style={styles.title}>Rouah</Text>
 
         <Image
-          source={require('../assets/logo.png')} // Remplace par ton chemin réel
+          source={require('../assets/logo-original.png')} // Remplace par ton chemin réel
           style={styles.logo}
+          resizeMode="contain"
         />
 
         <Text style={styles.message}>{message || "Espace d'inscription"}</Text>
@@ -206,7 +207,7 @@ const styles = StyleSheet.create({
   button: {
     width: '100%',
     padding: 14,
-    backgroundColor: '#3C64B1', // Couleur Hostinger / personnalisée
+    backgroundColor: '#403b3b', // Couleur Hostinger / personnalisée
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 20,
@@ -214,7 +215,7 @@ const styles = StyleSheet.create({
   btn: {
     width: '100%',
     padding: 14,
-    backgroundColor: '#0A84FF',
+    backgroundColor: '#fa4447',
     borderRadius: 8,
     alignItems: 'center',
     marginBottom: 20,
@@ -224,7 +225,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   link: {
-    color: '#3C64B1',
+    color: '#403b3b',
     marginBottom: 15,
     textAlign: 'center',
     fontWeight:'bold'
