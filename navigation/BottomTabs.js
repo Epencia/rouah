@@ -57,26 +57,29 @@ export default function BottomTabs() {
       />
 
       <Tab.Screen
-        name="Publier"
-        component={EditionAnnonce}
-        options={({ navigation }) => ({
-          tabBarLabel: '',
-          tabBarButton: (props) => (
-            <TouchableOpacity
-              {...props}
-              style={styles.tabBarButtonContainer}
-              onPress={() => navigation.navigate('Publier')}
-            >
-              <View style={[
-                styles.mainActionButton,
-                props.accessibilityState?.selected && styles.mainActionButtonActive
-              ]}>
-                <Icon name="add" size={30} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          ),
-        })}
-      />
+  name="Publier"
+  component={EditionAnnonce}
+  options={({ navigation, route }) => ({
+    tabBarLabel: '',
+    tabBarButton: (props) => {
+      const isFocused = navigation.isFocused();
+      return (
+        <TouchableOpacity
+          {...props}
+          style={styles.tabBarButtonContainer}
+          onPress={() => navigation.navigate('Publier')}
+        >
+          <View style={[
+            styles.mainActionButton,
+            isFocused && styles.mainActionButtonActive
+          ]}>
+            <Icon name="add" size={30} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      )
+    },
+  })}
+/>
 
       <Tab.Screen
         name="Sécurité"
@@ -140,7 +143,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
-    elevation: 6,
+    //elevation: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

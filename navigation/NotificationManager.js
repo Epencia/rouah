@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Créez une référence de navigation
@@ -58,6 +58,54 @@ const NotificationManager = () => {
     }
   };
 
+  // Gestion des liens profonds
+  const handleDeepLink = (event) => {
+    if (!event.url) return;
+    
+    console.log('Deep link reçu:', event.url);
+    
+    // Exemple: rouah://details/annonce/123
+    const route = event.url.replace(/.*?:\/\//g, '');
+    const parts = route.split('/');
+    // Detais des annonces
+    if (parts[0] === 'annonce' && navigationRef.current) {
+      navigationRef.current.navigate("Details d'annonce", {
+        code: parts[1],
+        utilisateur_id: parts[2] || '',
+        titre: parts[3] ? decodeURIComponent(parts[3]) : '',
+       description: parts[4] ? decodeURIComponent(parts[4]) : ''
+        // autres params si nécessaire
+      });
+    }
+    // Details de signal 
+    if (parts[0] === 'signal' && navigationRef.current) {
+      navigationRef.current.navigate("Signal d'alerte", {
+        id_geoip: parts[1],
+        utilisateur_id: parts[2] || '',
+        latitude: parts[3] ? parseFloat(parts[3]) : 0,
+        longitude: parts[4] ? parseFloat(parts[4]) : 0,
+        adresse: parts[5] ? decodeURIComponent(parts[5]) : ''
+        // autres params si nécessaire
+      });
+    }
+    // Details zones dangereuses
+    if (parts[0] === 'zones_dangereuses' && navigationRef.current) {
+      navigationRef.current.navigate("Zones dangereuses", {
+        code_zone: parts[1],
+        nom_zone: parts[2] || '',
+        latitude: parts[3] ? parseFloat(parts[3]) : 0,
+        longitude: parts[4] ? parseFloat(parts[4]) : 0,
+        adresse: parts[5] ? decodeURIComponent(parts[5]) : '',
+        distance_km: parts[6],
+        distance_m: parts[7],
+        observation_zone: parts[8]
+        // autres params si nécessaire
+      });
+    }
+
+  };
+
+  // Gestion des réponses aux notifications
   const handleNotificationResponse = (response) => {
     const data = response.notification.request.content.data;
     
@@ -81,20 +129,44 @@ const NotificationManager = () => {
             adresse: data.params.adresse
         });
     } 
+    // Zones dangereuses
+    if (data?.screen === "Zones dangereuses" && navigationRef.current) {
+      navigationRef.current.navigate("Zones dangereuses", {
+            code_zone: data.params.code_zone,
+            nom_zone: data.params.nom_zone,
+            observation_zone: data.params.observation_zone,
+            latitude: data.params.latitude,
+            longitude: data.params.longitude,
+            adresse: data.params.adresse
+        });
+    } 
 
   };
 
   useEffect(() => {
+    let linkingSubscription;
+    let notificationReceivedSubscription;
+    let notificationResponseSubscription;
+
     const init = async () => {
+      // Initialisation du matricule
       const storedMatricule = await AsyncStorage.getItem('matricule');
       if (storedMatricule) {
         setMatricule(storedMatricule);
 
+        // Enregistrement pour les notifications push
         const token = await registerForPushNotificationsAsync();
         if (token) {
           console.log("Push token obtenu :", token);
           await sendTokenToServer(token);
         }
+
+        // NOUVELLE METHODE POUR L'ECOUTE DES LIENS PROFONDS
+        linkingSubscription = Linking.addEventListener('url', handleDeepLink);
+
+        // Vérification du lien initial si l'app a été ouverte via un lien
+        const initialUrl = await Linking.getInitialURL();
+        if (initialUrl) handleDeepLink({ url: initialUrl });
       }
     };
 
@@ -106,20 +178,23 @@ const NotificationManager = () => {
       }),
     });
 
-    const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+    // Écouteurs de notifications
+    notificationReceivedSubscription = Notifications.addNotificationReceivedListener((notification) => {
       Alert.alert(
         notification.request.content.title || 'Notification',
         notification.request.content.body
       );
     });
 
-    const responseListener = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    notificationResponseSubscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
 
     init();
 
     return () => {
-      notificationListener.remove();
-      responseListener.remove();
+      // NOUVELLE METHODE DE NETTOYAGE
+      if (linkingSubscription) linkingSubscription.remove();
+      if (notificationReceivedSubscription) notificationReceivedSubscription.remove();
+      if (notificationResponseSubscription) notificationResponseSubscription.remove();
     };
   }, [matricule]);
 

@@ -18,18 +18,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "UIBackgroundModes": [
-          "location",
-          "fetch",
-          "remote-notification"
-        ],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position en permanence pour détecter les situations d'urgence.",
-        "NSLocationWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position pour fournir les services de protection.",
-        "NSMotionUsageDescription": "Cette application a besoin d'accéder aux capteurs de mouvement pour détecter les chutes ou accidents."
-      },
-      "bundleIdentifier": "com.mandigoentreprise.rouah"
+      "supportsTablet": true
     },
     "android": {
       "icon": "./assets/logo-icon.png",
@@ -60,12 +49,10 @@
         "NOTIFICATIONS",
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
-        "WAKE_LOCK",
         "com.google.android.c2dm.permission.RECEIVE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.WAKE_LOCK",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.ACTIVITY_RECOGNITION"
+        "android.permission.FOREGROUND_SERVICE"
       ]
     },
     "web": {
@@ -87,47 +74,17 @@
           "startOnBoot": true
         }
       ],
-      [
+       [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Autoriser Rouah à accéder à votre position en arrière-plan pour la protection d'urgence.",
-          "isAndroidBackgroundLocationEnabled": true,
-          "isIosBackgroundLocationEnabled": true
-        }
-      ],
-      [
-        "expo-task-manager",
-        {
-          "android": {
-            "taskManager": {
-              "exported": true
-            }
-          }
-        }
-      ],
-      [
-        "expo-sensors",
-        {
-          "motionPermission": "Cette application a besoin d'accéder à vos capteurs de mouvement pour détecter les situations d'urgence."
+          "isAndroidBackgroundLocationEnabled": true
         }
       ]
     ],
     "notification": {
       "icon": "./assets/favicon.png",
-      "color": "#ffffff",
-      "androidMode": "default",
-      "androidCollapsedTitle": "Alerte Rouah",
-      "iosDisplayInForeground": true
-    },
-    "androidStatusBar": {
-      "backgroundColor": "#000000",
-      "barStyle": "light-content"
-    },
-    "updates": {
-      "fallbackToCacheTimeout": 30000
-    },
-    "runtimeVersion": {
-      "policy": "sdkVersion"
+      "color": "#ffffff"
     }
   }
 }

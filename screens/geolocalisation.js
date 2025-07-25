@@ -1,837 +1,444 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
-import { View, StatusBar, Linking, Text, Vibration, Image, StyleSheet, Dimensions, Animated, Alert, TouchableOpacity, TextInput, FlatList, TouchableWithoutFeedback } from 'react-native';
+import React, { useEffect, useState, useContext, useRef } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, 
+  TextInput, Alert, Image, ActivityIndicator
+} from 'react-native';
 import { WebView } from 'react-native-webview';
-import * as Location from 'expo-location';
-import * as Sensors from 'expo-sensors';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Modal from 'react-native-modal';
-
-// Dimensions de l'écran
-const { width, height } = Dimensions.get('window');
-
-// Coordonnées initiales centrées sur la Côte d'Ivoire
-const INITIAL_COORDS = [7.5399, -5.5471];
-const INITIAL_ZOOM = 7;
+import { GlobalContext } from '../global/GlobalState';
 
 export default function Geolocalisation({ navigation }) {
-  // États pour la géolocalisation et les communes
-  const [currentLocation, setCurrentLocation] = useState(null);
-  const [currentCommune, setCurrentCommune] = useState(null);
-  const [statusMessage, setStatusMessage] = useState('En attente de la position...');
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [communes, setCommunes] = useState([]);
-  const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [showDetectorSheet, setShowDetectorSheet] = useState(false);
-  const [searchQuery3, setSearchQuery3] = useState('');
-  const [PositionFamilles, setPositionFamilles] = useState([]);
+  const [user] = useContext(GlobalContext);
+  const [dataFamilles, setDataFamilles] = useState([]);
+  const [searchFamille, setSearchFamille] = useState('');
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [searchedLocation, setSearchedLocation] = useState(null);
+  const [loading, setLoading] = useState(false);
   const webviewRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const countdownRef = useRef(null);
-  const [location, setLocation] = useState(null);
-  const [ZoneDangereuse, setZoneDangereuse] = useState([]);
 
-  // Animation
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    navigation.setOptions({ title: 'Localiser un membre' });
+    if (user?.matricule) {
+      getData();
+    }
+  }, [user]);
 
-  // Fonction pour obtenir la commune via géocodage
-  const getCommuneFromGeocoding = async (latitude, longitude) => {
+  const getData = async () => {
+    setLoading(true);
     try {
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'MyApp/1.0 (infoseric35@gmail.com)',
-          },
-        }
+      const resFamilles = await fetch(
+        `https://rouah.net/api/liste-famille.php?matricule=${user.matricule}`
       );
-      if (!response.ok) {
-        throw new Error(`Erreur HTTP: ${response.status}`);
-      }
-      const text = await response.text();
-      const data = JSON.parse(text);
-      if (data && data.address && data.address.city) {
-        return { libelle_commune: data.address.city ?? data.address.town ?? data.address.village };
-      } else {
-        return null;
-      }
-    } catch (error) {
-      console.error('Erreur de géocodage:', error.message);
-      if (error.message.includes('Unexpected character')) {
-        console.warn('Réponse HTML reçue au lieu de JSON.');
-      }
-      return null;
-    }
-  };
-
-
-
-  // Appareils et familles
-
-  const getPositionFamille = async () => {
-    const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      Alert.alert('⚠️', 'Veuillez vous connecter pour accéder à cette fonctionnalité.');
-      return;
-    }
-    try {
-      const resFamilles = await fetch(`https://rouah.net/api/liste-famille.php?matricule=${matricule}`);
       const familles = await resFamilles.json();
-      setPositionFamilles(familles);
-      setShowBottomSheet(true);
+      setDataFamilles(familles);
     } catch (error) {
-      Alert.alert('Erreur', 'Impossible de charger les données.');
+      Alert.alert("Erreur", "Impossible de charger les données.");
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const afficherLocalisation = async (id) => {
+    if (!id) return;
+    
+    setLoading(true);
     try {
-      const res = await fetch(`https://rouah.net/api/geoip-recherche.php?matricule=${encodeURIComponent(id)}`);
+      const res = await fetch(
+        `https://rouah.net/api/recherche-geo.php?matricule=${encodeURIComponent(id)}`
+      );
       const data = await res.json();
+
+      if (!data || data.length === 0) {
+        throw new Error('Aucune donnée de localisation');
+      }
+
       const parsedData = data.map(loc => ({
         ...loc,
         latitude: parseFloat(loc.latitude),
         longitude: parseFloat(loc.longitude),
         color: loc.couleur || 'red',
       }));
-      setSearchedLocation(parsedData);
-      if (parsedData.length > 0) {
-        const { latitude, longitude } = parsedData[0];
-        const script = `
-          if (typeof map !== 'undefined') {
-            map.setView([${latitude}, ${longitude}], 16);
-            if (window.searchedMarker) {
-              map.removeLayer(window.searchedMarker);
-            }
-            window.searchedMarker = L.marker([${latitude}, ${longitude}])
-              .addTo(map)
-              .bindPopup('<strong>${(parsedData[0].nom_prenom || 'Localisation').replace(/'/g, "\\'")}</strong>')
-              .openPopup();
-          }
-        `;
-        webviewRef.current?.injectJavaScript(script);
-        setSelectedLocation(parsedData[0]);
-      } else {
-        setSelectedLocation(null);
-      }
-    } catch {
-      Alert.alert('Message', 'Localisation non trouvée');
-      setSearchedLocation(null);
+
+      setSelectedLocation(parsedData[0]);
+
+      webviewRef.current?.postMessage(JSON.stringify({
+        type: 'setMarkers',
+        markers: parsedData,
+        center: { 
+          lat: parsedData[0].latitude, 
+          lng: parsedData[0].longitude 
+        }
+      }));
+    } catch (error) {
+      Alert.alert('Erreur', 'Localisation non trouvée');
+      console.error(error);
       setSelectedLocation(null);
+      webviewRef.current?.postMessage(JSON.stringify({ type: 'clearMarkers' }));
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Zones dangereuses
-  const getZoneDangereuse = async () => {
-    const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      console.warn('⚠️ Veuillez vous connecter pour accéder aux alertes.');
-      Alert.alert('Erreur', 'Matricule non configuré. Veuillez vous connecter.');
-      return;
-    }
-    try {
-      const response = await fetch(`https://rouah.net/api/zone-dangereuse.php`);
-      const data = await response.json();
-      setZoneDangereuse(data);
-    } catch (error) {
-      setZoneDangereuse([]);
-    }
-  };
-
-  // Configurer la géolocalisation
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-
-    let locationSubscription;
-    const startContinuousTracking = async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setErrorMsg('Permission de localisation refusée');
-        setStatusMessage('Permission de localisation refusée');
-        Alert.alert('Permission refusée', "L'accès à la localisation est nécessaire.");
-        return;
-      }
-
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 10,
-        },
-        async (position) => {
-          const { latitude, longitude } = position.coords;
-          setCurrentLocation({ latitude, longitude });
-          setLocation(position);
-
-          const commune = await getCommuneFromGeocoding(latitude, longitude);
-          if (commune) {
-            setCurrentCommune(commune);
-            setStatusMessage(`Vous êtes à ${commune.libelle_commune}`);
-          } else {
-            setCurrentCommune(null);
-            setStatusMessage('Position actuelle');
-          }
-
-          const script = `
-            if (typeof map !== 'undefined') {
-              // Supprimer l'ancien marqueur s'il existe
-              if (window.currentUserMarker) {
-                map.removeLayer(window.currentUserMarker);
-              }
-              
-              // Créer un nouveau marqueur
-              window.currentUserMarker = L.marker([${latitude}, ${longitude}])
-                .addTo(map)
-                .bindPopup('<strong>Votre position</strong><br>Latitude: ${latitude}<br>Longitude: ${longitude}');
-                
-              ${ZoneDangereuse.map(alert => `
-                L.marker([${alert.latitude_zone}, ${alert.longitude_zone}])
-                  .addTo(map)
-                  .bindPopup('<strong>${alert.adresse_zone || alert.ville_zone}</strong><br>${alert.observation_zone}');
-              `).join('')}
-            }
-          `;
-          webviewRef.current?.injectJavaScript(script);
-        },
-        (error) => {
-          console.error('Erreur de géolocalisation:', error);
-          setErrorMsg('Erreur de géolocalisation');
-          setStatusMessage('Erreur de géolocalisation');
-        }
-      );
-    };
-
-    startContinuousTracking();
-    getZoneDangereuse();
-
-    return () => {
-      if (locationSubscription) {
-        locationSubscription.remove();
-      }
-    };
-  }, [fadeAnim]);
-
-  // Fonction pour actualiser la localisation
-  const refreshLocation = async () => {
-    try {
-      setStatusMessage('Actualisation en cours...');
-      
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Permission refusée');
-      }
-
-      const position = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-        timeout: 10000,
-      });
-
-      const { latitude, longitude } = position.coords;
-      setCurrentLocation({ latitude, longitude });
-      setLocation(position);
-
-      const commune = await getCommuneFromGeocoding(latitude, longitude);
-      if (commune) {
-        setCurrentCommune(commune);
-        setStatusMessage(`Position actualisée - ${commune.libelle_commune}`);
-      } else {
-        setStatusMessage('Position actualisée');
-      }
-
-      // Recentrer seulement si l'utilisateur le demande explicitement
-      const script = `
-        if (typeof map !== 'undefined') {
-          map.setView([${latitude}, ${longitude}], 16);
-        }
-      `;
-      webviewRef.current?.injectJavaScript(script);
-
-    } catch (error) {
-      console.error('Erreur actualisation:', error);
-      setStatusMessage("Erreur lors de l'actualisation");
-      Alert.alert(
-        'Erreur', 
-        'Impossible de mettre à jour la position. Vérifiez votre connexion et les permissions.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  // Alerte SOS
-  useEffect(() => {
-    let subscription;
-    Sensors.Accelerometer.setUpdateInterval(100);
-    subscription = Sensors.Accelerometer.addListener(({ x, y, z }) => {
-      const acceleration = Math.sqrt(x * x + y * y + z * z);
-      if (acceleration > 2.5) {
-        startCountdown();
-      }
-    });
-    return () => subscription?.remove();
-  }, [location]);
-
-  const startCountdown = () => {
-    setModalVisible(true);
-    setCountdown(10);
-    countdownRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(countdownRef.current);
-          setModalVisible(false);
-          sendSOS(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const cancelCountdown = () => {
-    clearInterval(countdownRef.current);
-    setModalVisible(false);
-    setCountdown(10);
-  };
-
-  const sendSOS = async (isAutomatic = false) => {
-    if (!location) {
-      Alert.alert('Erreur', 'Localisation indisponible.');
-      return;
-    }
-
-    const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      console.warn('⚠️ Veuillez vous connecter pour accéder à cette fonctionnalité.');
-      Alert.alert('Erreur', 'Matricule non configuré. Veuillez vous connecter.');
-      return;
-    }
-
-    const userId = await AsyncStorage.getItem('userId');
-    const pushToken = await AsyncStorage.getItem('pushToken');
-    const sosData = {
-      userId,
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      matricule,
-      type: isAutomatic ? 'AUTO_SOS' : 'MANUAL_SOS',
-      timestamp: new Date().toISOString(),
-    };
-    try {
-      let alerts = JSON.parse(await AsyncStorage.getItem('sos_alerts')) || [];
-      alerts.push(sosData);
-      await AsyncStorage.setItem('sos_alerts', JSON.stringify(alerts));
-
-      const url = `https://rouah.net/api/position.php?latitude=${sosData.latitude}&longitude=${sosData.longitude}&matricule=${matricule}`;
-      const response = await fetch(url);
-      const json = await response.json();
-      console.log('📤 Réponse API (SOS):', json);
-
-      Vibration.vibrate([500, 500, 500]);
-      Alert.alert('Succès', 'Alerte envoyée à vos contacts et enregistrée.');
-    } catch (error) {
-      Alert.alert('Erreur', "Échec de l'envoi de l'alerte. Vérifiez votre connexion.");
-      console.error('Erreur SOS:', error);
-    }
-  };
-
-  const handleAutomaticSOS = () => {
-    Alert.alert(
-      'Danger détecté',
-      'Voulez-vous envoyer une alerte SOS ?',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Envoyer', onPress: () => sendSOS(true) },
-      ],
-      { cancelable: false }
+  const filterData = (data, keyword) => {
+    if (!keyword) return data;
+    const lowerKeyword = keyword.toLowerCase();
+    return data.filter(item =>
+      (item.nom_prenom?.toLowerCase() || '').includes(lowerKeyword) ||
+      (item.telephone?.toLowerCase() || '').includes(lowerKeyword)
     );
   };
 
-  // Filtrer les données
+  const onMessage = (event) => {
+    try {
+      const msg = JSON.parse(event.nativeEvent.data);
+      console.log('Message from WebView:', msg);
+      if (msg.type === 'markerClick') {
+        setSelectedLocation(msg.data);
+      }
+    } catch (e) {
+      console.warn('Erreur message WebView', e);
+    }
+  };
 
-
-  const searchItems3 = useMemo(() => () => PositionFamilles.filter(item =>
-    item.nom_prenom.toLowerCase().includes(searchQuery3.toLowerCase()) ||
-    item.telephone.toLowerCase().includes(searchQuery3.toLowerCase())
-  ), [PositionFamilles, searchQuery3]);
-
-
-  // Liste des détecteurs
-  const detectors = [
-    { name: 'Détecteur de vitesse', icon: 'speedometer', screen: 'Detecteur de vitesse' },
-    { name: 'Détecteur magnétique', icon: 'magnet', screen: 'Detecteur magnetique' },
-    { name: 'Détecteur paranormal', icon: 'ghost', screen: 'Detecteur paranormal' },
-  ];
-
-  if (errorMsg) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{errorMsg}</Text>
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      onPress={() => afficherLocalisation(item.matricule)}
+      style={styles.experienceItem}
+      disabled={loading}
+    >
+      <View style={styles.itemContainer}>
+        <View style={styles.cardIcon}>
+          {item.photo64 ? (
+            <Image
+              source={{ uri: `data:${item.type};base64,${item.photo64}` }}
+              style={styles.markerImage}
+            />
+          ) : (
+            <Image
+              source={require('../assets/user.jpg')}
+              style={styles.markerImage}
+              resizeMode="contain"
+            />
+          )}
+        </View>
+        <View style={styles.userInfo}>
+          <Text style={styles.userName}>{item.nom_prenom}</Text>
+          <Text style={styles.userCode}>{item.telephone}</Text>
+        </View>
       </View>
-    );
-  }
+    </TouchableOpacity>
+  );
 
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>
-        html, body { 
-          margin: 0; 
-          padding: 0; 
-          width: 100%; 
-          height: 100%; 
-          overflow: hidden;
+  const filteredData = filterData(dataFamilles, searchFamille);
+
+  const leafletHTML = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Carte OSM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+    #map { width: 100%; height: 100%; background-color: #f0f0f0; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script>
+    // Initialisation avec coordonnées par défaut (Abidjan)
+    var map = L.map('map', { zoomControl: true }).setView([5.3599, -4.0083], 13);
+    
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+      detectRetina: true
+    }).addTo(map);
+
+    var markers = [];
+    var currentPopup = null;
+
+    function clearMarkers() {
+      markers.forEach(marker => {
+        map.removeLayer(marker);
+        if (currentPopup) {
+          currentPopup.remove();
+          currentPopup = null;
         }
-        #map { 
-          width: 100%; 
-          height: 100%; 
-        }
-      </style>
-    </head>
-    <body>
-      <div id="map"></div>
-      <script>
-        const map = L.map('map').setView([${INITIAL_COORDS[0]}, ${INITIAL_COORDS[1]}], ${INITIAL_ZOOM});
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          attribution: '© OpenStreetMap'
+      });
+      markers = [];
+    }
+
+    function addMarkers(markerData) {
+      clearMarkers();
+      markerData.forEach(loc => {
+        var marker = L.marker([loc.latitude, loc.longitude], {
+          title: loc.nom_prenom || 'Localisation',
+          riseOnHover: true
         }).addTo(map);
-
-        // Variable pour stocker le marqueur utilisateur
-        let currentUserMarker = null;
-        let searchedMarker = null;
-
-        map.on('click', function(e) {
+        
+        var popupContent = \`<b>\${loc.nom_prenom || 'Localisation'}</b><br>
+                            <small>Lat: \${loc.latitude.toFixed(6)}<br>
+                            Lng: \${loc.longitude.toFixed(6)}</small>\`;
+        
+        marker.bindPopup(popupContent);
+        
+        marker.on('popupopen', function() {
+          currentPopup = this.getPopup();
           window.ReactNativeWebView.postMessage(JSON.stringify({
-            type: 'mapClick',
-            lat: e.latlng.lat,
-            lng: e.latlng.lng
+            type: 'markerClick',
+            data: loc
           }));
         });
 
-        map.whenReady(function() {
-          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'mapReady' }));
-        });
-      </script>
-    </body>
-    </html>
-  `;
+        markers.push(marker);
+      });
+      
+      if (markerData.length > 0) {
+        map.setView([markerData[0].latitude, markerData[0].longitude], 15);
+      }
+    }
+
+    // Gestion des messages pour Android
+    document.addEventListener('message', function(event) {
+      try {
+        var msg = JSON.parse(event.data);
+        if (msg.type === 'setMarkers') {
+          addMarkers(msg.markers);
+        } else if (msg.type === 'clearMarkers') {
+          clearMarkers();
+        }
+      } catch (e) {
+        console.error('Error processing message:', e);
+      }
+    });
+
+    // Gestion des messages pour iOS
+    window.addEventListener('message', function(event) {
+      try {
+        var msg = JSON.parse(event.data);
+        if (msg.type === 'setMarkers') {
+          addMarkers(msg.markers);
+        } else if (msg.type === 'clearMarkers') {
+          clearMarkers();
+        }
+      } catch (e) {
+        console.error('Error processing message:', e);
+      }
+    });
+
+    // Test initial
+    setTimeout(function() {
+      window.ReactNativeWebView.postMessage(JSON.stringify({
+        type: 'mapLoaded',
+        message: 'Carte prête'
+      }));
+    }, 1000);
+  </script>
+</body>
+</html>
+`;
 
   return (
-    <SafeAreaView style={styles.container} edges={['right', 'left']}>
-      <StatusBar backgroundColor="transparent" translucent />
-      <WebView
-        ref={webviewRef}
-        originWhitelist={['*']}
-        source={{ html: htmlContent }}
-        javaScriptEnabled
-        domStorageEnabled
-        onMessage={(event) => {
-          const data = JSON.parse(event.nativeEvent.data);
-          if (data.type === 'mapReady') {
-            setMapReady(true);
-          }
-        }}
-        style={styles.map}
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <View style={styles.mapContainer}>
+        <WebView
+          ref={webviewRef}
+          originWhitelist={['*']}
+          source={{ html: leafletHTML, baseUrl: '' }}
+          mixedContentMode="always"
+          onMessage={onMessage}
+          javaScriptEnabled={true}
+          domStorageEnabled={true}
+          allowFileAccess={true}
+          allowUniversalAccessFromFileURLs={true}
+          style={styles.webview}
+          onLoadEnd={() => console.log('WebView loaded')}
+          onError={(error) => console.error('WebView error:', error)}
+          onHttpError={(error) => console.error('WebView HTTP error:', error)}
+          renderLoading={() => (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007BFF" />
+            </View>
+          )}
+          startInLoadingState={true}
+        />
+        {selectedLocation && (
+          <View style={styles.locationInfo}>
+            <Text style={styles.infoText}>
+              <Text style={styles.infoLabel}>Nom: </Text>
+              {selectedLocation.nom_prenom || 'Inconnu'}
+            </Text>
+            <Text style={styles.infoText}>
+              <Text style={styles.infoLabel}>Coordonnées: </Text>
+              {selectedLocation.latitude.toFixed(6)}, {selectedLocation.longitude.toFixed(6)}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      <View style={styles.tabBar}>
+        <Text style={styles.tabText}>Liste des membres</Text>
+      </View>
+
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Rechercher un membre..."
+        placeholderTextColor="#999"
+        value={searchFamille}
+        onChangeText={setSearchFamille}
       />
-      <View style={styles.overlayContent}>
-        <View style={styles.statusBox}>
-          <Text style={[currentCommune ? styles.statusText : styles.statusTextError]}>{statusMessage}</Text>
-        </View>
-      </View>
 
-      {/* Modal pour alerte SOS */}
-      <Modal isVisible={isModalVisible} backdropOpacity={0.7}>
-        <View style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Envoi de l'alerte SOS</Text>
-          <Text style={styles.modalCountdown}>{countdown}</Text>
-          <Text style={styles.modalText}>L'alerte sera envoyée dans {countdown} secondes</Text>
-          <TouchableOpacity style={styles.cancelButton} onPress={cancelCountdown}>
-            <Text style={styles.cancelButtonText}>Annuler</Text>
-          </TouchableOpacity>
+      {loading && !filteredData.length ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007BFF" />
         </View>
-      </Modal>
-
-      {/* Bottom Sheet pour appareils, familles et intérêts */}
-      <Modal
-        isVisible={showBottomSheet}
-        onBackdropPress={() => setShowBottomSheet(false)}
-        style={styles.bottomSheet}
-        backdropOpacity={0.5}
-      >
-        <View style={styles.bottomSheetContent}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder={`Rechercher un membre`}
-            value={searchQuery3}
-            onChangeText={text => {setSearchQuery3(text);
-            }}
-          />
-          <FlatList
-            data={searchQuery3 ? searchItems3() : PositionFamilles}
-            keyExtractor={item => item.matricule}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.eventItem}
-                onPress={() => {afficherLocalisation(item.matricule);
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={styles.cardIcon}>
-                    {item.photo64 ? (
-                      <Image
-                        source={{ uri: `data:${item.type};base64,${item.photo64}` }}
-                        style={styles.markerImage}
-                      />
-                    ) : (
-                      <Image
-                        source={require('../assets/user.jpg')}
-                        style={styles.markerImage}
-                      />
-                    )}
-                  </View>
-                  <View style={styles.userInfo}>
-                    <Text style={styles.eventTitle}>
-                      {item.nom_prenom}
-                    </Text>
-                      <Text style={styles.eventDescription}>Tel : {item.telephone}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            )}
-            ListEmptyComponent={<Text style={styles.noEvents}>Aucun résultat</Text>}
-            style={styles.eventList}
-          />
-          <TouchableOpacity style={styles.closeButton} onPress={() => setShowBottomSheet(false)}>
-            <Text style={styles.closeButtonText}>Fermer</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* Bottom Sheet pour les détecteurs */}
-      <Modal
-        isVisible={showDetectorSheet}
-        onBackdropPress={() => setShowDetectorSheet(false)}
-        style={styles.bottomSheet}
-        backdropOpacity={0.5}
-      >
-        <View style={styles.bottomSheetContent}>
-          <Text style={styles.detectorSheetTitle}>Sélectionner un détecteur</Text>
-          <FlatList
-            data={detectors}
-            keyExtractor={item => item.name}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.detectorItem}
-                onPress={() => {
-                  setShowDetectorSheet(false);
-                  navigation.navigate(item.screen);
-                }}
-              >
-                <MaterialCommunityIcons name={item.icon} size={30} color="#007bff" />
-                <Text style={styles.detectorItemText}>{item.name}</Text>
-              </TouchableOpacity>
-            )}
-            style={styles.detectorList}
-          />
-          <TouchableOpacity style={styles.closeButton} onPress={() => setShowDetectorSheet(false)}>
-            <Text style={styles.closeButtonText}>Fermer</Text>
-          </TouchableOpacity>
-        </View>
-      </Modal>
-
-      {/* Boutons flottants alignés à droite */}
-      <View style={styles.floatingButtonsContainer}>
-        <TouchableOpacity
-          style={styles.floatingButtonMiddle}
-          onPress={() => {
-            getPositionFamille();
-          }}
-        >
-          <Feather name="search" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.floatingButtonMiddle}
-          onPress={() => setShowDetectorSheet(true)}
-        >
-          <Feather name="activity" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.floatingButtonMiddle}
-          onPress={() => navigation.navigate("Zones dangereuses")}
-        >
-          <Feather name="shield" size={24} color="black" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.floatingButtonTop}
-          onPress={() => handleAutomaticSOS()}
-        >
-          <Feather name="alert-triangle" size={24} color="white" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.floatingButtonBottom}
-          onPress={refreshLocation}
-        >
-          <Feather name="refresh-cw" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
+      ) : (
+        <FlatList
+          data={filteredData}
+          keyExtractor={(item) => item.matricule}
+          renderItem={renderItem}
+          ListEmptyComponent={
+            <Text style={styles.emptyList}>Aucun membre trouvé</Text>
+          }
+          contentContainerStyle={styles.listContent}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: { 
+    flex: 1, 
+    backgroundColor: 'white' 
+  },
+  mapContainer: { 
+    height: 350,  // Hauteur fixe pour la carte
+    zIndex: 1,
+  },
+  webview: {
     flex: 1,
-    backgroundColor: '#F0F2F5',
-  },
-  map: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-  statusBox: {
-    marginTop: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    width: '80%',
-    alignItems: 'center',
-    backgroundColor: 'white',
-  },
-  statusText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#007bff',
-    textAlign: 'center',
-  },
-  statusTextError: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#DC3545',
-    textAlign: 'center',
-  },
-  errorText: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 18,
-    color: '#555',
-    marginTop: '50%',
-  },
-  floatingButtonsContainer: {
-    position: 'absolute',
-    right: 20,
-    bottom: 80,
-    alignItems: 'flex-end',
-  },
-  floatingButtonTop: {
-    backgroundColor: '#FF3B30',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    zIndex: 3,
-    marginBottom: 15,
-  },
-  floatingButtonMiddle: {
-    backgroundColor: 'white',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    zIndex: 3,
-    marginBottom: 15,
-  },
-  floatingButtonBottom: {
-    backgroundColor: '#007bff',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    zIndex: 3,
-  },
-  overlayContent: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: 'transparent',
   },
-  bottomSheet: {
-    justifyContent: 'flex-end',
-    margin: 0,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.7)',
   },
-  bottomSheetContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '70%',
+  locationInfo: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 10,
+  infoText: {
+    fontSize: 14,
+    marginVertical: 2,
+    color: '#333',
   },
-  tab: {
-    paddingVertical: 10,
-    paddingHorizontal: 15,
-    borderRadius: 10,
+  infoLabel: {
+    fontWeight: 'bold',
+    color: '#007BFF',
   },
-  activeTab: {
-    backgroundColor: '#007bff',
+  tabBar: {
+    padding: 15,
+    backgroundColor: '#f8f8f8',
+    borderBottomWidth: 1,
+    borderColor: '#eee',
   },
   tabText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    textAlign: 'center',
     color: '#333',
-  },
-  tabActiveText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: 'white',
   },
   searchInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 10,
-  },
-  eventList: {
-    maxHeight: 200,
-  },
-  eventItem: {
-    padding: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-    minHeight: 70,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  eventDescription: {
-    fontSize: 14,
-    color: '#555',
-  },
-  noEvents: {
-    fontSize: 14,
-    color: '#555',
-    textAlign: 'center',
-    marginTop: 10,
-  },
-  closeButton: {
-    backgroundColor: '#007bff',
-    borderRadius: 5,
-    padding: 10,
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 16,
-  },
-  markerImage: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-  cardIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 10,
-  },
-  userInfo: { flex: 1 },
-  modalContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    marginHorizontal: 20,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ff3333',
-    marginBottom: 10,
-  },
-  modalCountdown: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#ff3333',
-    marginBottom: 10,
-  },
-  modalText: {
+    backgroundColor: '#f5f5f5',
+    padding: 12,
+    margin: 10,
+    borderRadius: 8,
     fontSize: 16,
     color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
+    borderWidth: 1,
+    borderColor: '#ddd',
   },
-  cancelButton: {
-    backgroundColor: '#ff3333',
-    borderRadius: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
+  experienceItem: {
+    marginHorizontal: 10,
+    marginVertical: 5,
+    backgroundColor: 'white',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#eee',
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  cancelButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  detectorSheetTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  detectorList: {
-    maxHeight: 200,
-  },
-  detectorItem: {
+  itemContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
   },
-  detectorItemText: {
+  cardIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: '500',
     color: '#333',
-    marginLeft: 10,
+    marginBottom: 2,
+  },
+  userCode: {
+    fontSize: 14,
+    color: '#666',
+  },
+  markerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  emptyList: {
+    textAlign: 'center',
+    marginTop: 20,
+    color: '#999',
+    fontSize: 16,
+  },
+  listContent: {
+    paddingBottom: 20,
+  },
+  testButton: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'white',
+    padding: 8,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#007BFF',
   },
 });

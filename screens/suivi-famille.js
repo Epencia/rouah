@@ -17,17 +17,17 @@ const { width } = Dimensions.get('window');
 
 export default function SuiviFamille({ navigation }) {
 
+  const [otp, setOtp] = useState('');
+
   const [activeTab, setActiveTab] = useState('members');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isLoading, setIsLoading] = useState({
     membres: false,
-    menaces: false,
     alertes: false,
     zones: false,
   });
   const [errors, setErrors] = useState({
     membres: null,
-    menaces: null,
     alertes: null,
     zones: null,
   });
@@ -36,9 +36,12 @@ export default function SuiviFamille({ navigation }) {
   const [membres, setMembres] = useState([]);
   const [zones, setZones] = useState([]);
   const [alertes, setAlertes] = useState([]);
-  const [menaces, setMenaces] = useState([]);
 
   useEffect(() => {
+    if (user?.matricule) {
+        setOtp(user.matricule.toString().padStart(6, '0').slice(0, 6));
+      }
+
     if (!user || (typeof user === 'object' && Object.keys(user).length === 0)) {
       navigation.reset({
         index: 0,
@@ -48,13 +51,21 @@ export default function SuiviFamille({ navigation }) {
     }
 
     getMembres();
-    getMenaces();
     getAlertes();
     getZones();
 
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, [user]);
+  
+    // Afficher le code dans 6 cases (1 chiffre par case)
+    const renderOtpBoxes = () => {
+      return otp.split('').map((digit, index) => (
+        <View key={index} style={styles.otpBox}>
+          <Text style={styles.otpBoxText}>{digit}</Text>
+        </View>
+      ));
+    };
 
   const getMembres = async () => {
     setIsLoading(prev => ({ ...prev, membres: true }));
@@ -99,19 +110,7 @@ export default function SuiviFamille({ navigation }) {
     }
   };
 
-    const getMenaces = async () => {
-    setIsLoading(prev => ({ ...prev, menaces: true }));
-    setErrors(prev => ({ ...prev, menaces: null }));
-    try {
-      const response = await fetch(`https://rouah.net/api/liste-menace.php?matricule=${user.matricule}`);
-      const newData = await response.json();
-      setMenaces(newData);
-    } catch (error) {
-      setErrors(prev => ({ ...prev, menaces: error.message }));
-    } finally {
-      setIsLoading(prev => ({ ...prev, menaces: false }));
-    }
-  };
+
 
 
   const getSuppressionMembre = async (param1) => {
@@ -171,7 +170,7 @@ const openGoogleMaps = (latitude, longitude) => {
               style={styles.avatar}
             />
           ) : (
-            <Image source={require("../assets/logo.png")} style={styles.avatar}/>
+            <Image source={require("../assets/user.jpg")} style={styles.avatar}/>
           )}
           <View style={[styles.statusDot, getStatusColor(item.etat_connexion)]} />
         </View>
@@ -279,41 +278,13 @@ const openGoogleMaps = (latitude, longitude) => {
   );
 
 
-   const renderMenaceCard = ({ item }) => (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.zoneIcon}>
-          <MaterialCommunityIcons name="account-cancel" size={24} color="#DC2626" />
-        </View>
-        <View style={styles.cardHeaderContent}>
-          <Text style={styles.cardTitle}>{item.identite}</Text>
-          <Text style={styles.cardSubtitle}>{item.telephone || 'Pas de téléphone'}</Text>
-        </View>
-      </View>
 
-      <View style={styles.cardBody}>
-        <View style={styles.infoItem}>
-          <MaterialCommunityIcons name="comma" size={18} color="#6B7280" />
-          <Text style={styles.infoLabel}>Détails : {item.details}</Text>
-        </View>
-      </View>
-
-      <View style={styles.cardFooter}>
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]}>
-          <Text style={styles.buttonText}>Modifier</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, styles.dangerButton]}>
-          <Text style={[styles.buttonText, styles.dangerButtonText]}>Supprimer</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
 
   // Vérifier si toutes les requêtes sont en cours de chargement
   const isAnyLoading = Object.values(isLoading).some(loading => loading);
 
   // Vérifier si toutes les données sont vides et aucune requête n'est en cours
-  const isEmpty = (!membres.length && !zones.length && !alertes.length && !menaces.length) && !isAnyLoading;
+  const isEmpty = (!membres.length && !zones.length && !alertes.length) && !isAnyLoading;
 
   if (isAnyLoading && isEmpty) {
     return (
@@ -326,17 +297,11 @@ const openGoogleMaps = (latitude, longitude) => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-  <View style={styles.headerLeft}>
-
-    <View style={styles.headerActions}>
-    <Text style={styles.headerSubtitle}>
-      {membres.filter(m => m.etat_connexion === "Oui").length} membres connectés
-    </Text>
+  <View style={styles.header}>
+      <View style={styles.otpContainer}>
+            {renderOtpBoxes()}
+      </View>
     </View>
-  </View>
-  
-</View>
 
       {/* Tabs */}
       <View style={{ flexDirection: 'row', paddingVertical: 0 }}>
@@ -368,9 +333,9 @@ const openGoogleMaps = (latitude, longitude) => {
           <>
             
               <View style={styles.inputGroup}>
-                <TouchableOpacity style={styles.inviteButton} onPress={()=>navigation.navigate("Contacts")}>
+                <TouchableOpacity style={styles.inviteButton} onPress={()=>navigation.navigate("Edition de famille")}>
                   <Feather name="send" size={18} color="black" />
-                  <Text style={styles.inviteButtonText}>Intégrer un membre</Text>
+                  <Text style={styles.inviteButtonText}>Ajouter un membre</Text>
                 </TouchableOpacity>
               </View>
             
@@ -409,9 +374,6 @@ const openGoogleMaps = (latitude, longitude) => {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Alertes récentes</Text>
-                <TouchableOpacity>
-                  <Text style={styles.sectionAction}>Voir tout</Text>
-                </TouchableOpacity>
               </View>
               {isLoading.alertes ? (
                 <View style={styles.loadingContainer}>
@@ -448,9 +410,11 @@ const openGoogleMaps = (latitude, longitude) => {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Zones dangereuses</Text>
-                <TouchableOpacity style={styles.addButton} onPress={()=> navigation.navigate("Edition de zone")}>
-                  <Feather name="plus" size={18} color="white" />
-                  <Text style={styles.addButtonText}>Ajouter</Text>
+              </View>
+              <View style={styles.inputGroup}>
+                <TouchableOpacity style={styles.inviteButton} onPress={()=>navigation.navigate("Edition de zone")}>
+                  <Feather name="send" size={18} color="black" />
+                  <Text style={styles.inviteButtonText}>Ajouter une zone</Text>
                 </TouchableOpacity>
               </View>
               {isLoading.zones ? (
@@ -486,41 +450,14 @@ const openGoogleMaps = (latitude, longitude) => {
         {activeTab === 'cartes' && (
           <>
 
-            <View style={styles.section}>
-               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Menaces</Text>
-                <TouchableOpacity style={styles.addButton} onPress={()=> navigation.navigate("Edition de zone")}>
-                  <Feather name="plus" size={18} color="white" />
-                  <Text style={styles.addButtonText}>Ajouter</Text>
+
+        <View style={styles.inputGroup}>
+                <TouchableOpacity style={styles.inviteButton} onPress={()=>navigation.navigate("Localiser un membre")}>
+                  <Feather name="map" size={18} color="black" />
+                  <Text style={styles.inviteButtonText}>Ouvrir la carte</Text>
                 </TouchableOpacity>
               </View>
-              {isLoading.menaces ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#3B82F6" />
-                </View>
-              ) : errors.menaces ? (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>Erreur lors du chargement : {errors.menaces}</Text>
-                  <TouchableOpacity style={styles.retryButton} onPress={getLocalisation}>
-                    <Text style={styles.retryButtonText}>Réessayer</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <FlatList
-                  data={menaces}
-                  renderItem={renderMenaceCard}
-                  keyExtractor={(item) => item.code}
-                  scrollEnabled={false}
-                  contentContainerStyle={styles.listContainer}
-                  ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                      <MaterialCommunityIcons name="shield-off" size={48} color="#E5E7EB" />
-                      <Text style={styles.emptyText}>Aucune menace</Text>
-                    </View>
-                  }
-                />
-              )}
-            </View>
+               
           </>
         )}
       </ScrollView>
@@ -541,10 +478,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: -15,
   },
   headerTitle: {
     fontSize: 24,
@@ -980,6 +916,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 40,
   },
+ memberMarker: {
+    flex: 1,                   // Prend tout l'espace disponible
+    justifyContent: 'center',   // Centre verticalement
+    alignItems: 'center',      // Centre horizontalement
+    padding: 16,               // Marge intérieure
+  },
   emptyText: {
     color: '#9CA3AF',
     marginTop: 8,
@@ -1041,4 +983,31 @@ codeText: {
   fontWeight: 'bold',
   color: '#1E40AF', // Couleur bleu foncé pour les chiffres
 },
+// code de securité
+ otpContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: width * 0.85,
+    marginBottom: 40,
+  },
+  otpBox: {
+    width: 50,
+    height: 60,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#fa4447',
+  },
+  otpBoxText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fa4447',
+  },
 });

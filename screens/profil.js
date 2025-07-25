@@ -34,7 +34,7 @@ export default function Profil({ navigation }) {
 
   const selectImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.Images,
       quality: 1,
       base64: true,
       allowsEditing: false,

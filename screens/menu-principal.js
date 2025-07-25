@@ -19,31 +19,45 @@ const data = [
   },
   {
     id: '3',
-    image: 'map-marker-radius-outline',
-    titre: "LOCALISATIONS",
-    libelle: "Localiser mes appareils",
+    image: 'map-outline',
+    titre: "MAPS DES MEMBRES",
+    libelle: "Localiser mes membres",
     src : 'Geolocalisation'
   },
   {
     id: '4',
-    image: 'shield-outline',
+    image: 'shield-off-outline',
     titre: "ZONES DANGÉREUSES",
     libelle: "Définir les zones de dangers",
     src : 'Zones dangereuses'
   },
+   {
+    id: '5',
+    image: 'lock-outline',
+    titre: "CODE DE SÉCURITÉ",
+    libelle: "Voir votre code unique",
+    src : 'Code de securite'
+  },
     {
     id: '6',
-    image: 'group',
-    titre: "FAMILLES",
-    libelle: "Voir la liste de la famille",
-    src : 'Familles'
+    image: 'cash-100',
+    titre: "RECHARGEMENT SOLDE",
+    libelle: "Recharger votre solde",
+    src : 'Paiement UVE'
   },
-  {
-    id: '8',
+   {
+    id: '7',
     image: 'contacts-outline',
-    titre: "CONTACTS",
-    libelle: "Retrouvez vos contacts",
-    src : "Contacts"
+    titre: "AJOUTER UN MEMBRE",
+    libelle: "Ajouter un membre à votre famille",
+    src : "Edition de famille"
+  },
+    {
+    id: '8',
+    image: 'file-image-marker-outline',
+    titre: "ÉDITION D'ALERTE",
+    libelle: "Ajouter une alerte automatiquement",
+    src : "Edition d'alerte"
   },
    {
     id: '9',
@@ -66,12 +80,12 @@ const data = [
     libelle: "Signaler la présence des esprits",
     src : "Detecteur paranormal"
   },
-   {
-    id: '15',
-    image: 'diamond-stone',
-    titre: "TEST 2",
-    libelle: "Gemini",
-    src : "Gemini"
+    {
+    id: '12',
+    image: 'access-point-network',
+    titre: "ACTIVATION ARRIÈRE-PLAN",
+    libelle: "Activer en arrière-plan la position",
+    src : "EmergencyService"
   },
 ];
 

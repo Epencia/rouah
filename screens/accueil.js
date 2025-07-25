@@ -89,9 +89,9 @@ export default function Accueil() {
           <Text style={styles.statLabel}>Solde</Text>
         </View>
         <View style={styles.statCard}>
-          {annonce > 0 && (
-            <Text style={styles.statValue}>{annonce || 0}</Text>
-          )}
+          <Text style={styles.statValue}>
+           {typeof annonce !== 'undefined' && annonce !== null && annonce !== '' ? annonce : 0}
+          </Text>
           <Text style={styles.statLabel}>Annonces</Text>
         </View>
         <View style={styles.statCard}>

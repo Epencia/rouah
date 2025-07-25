@@ -1,5 +1,18 @@
-import React , {useEffect, useState, useContext  } from 'react';
-import {View,Text,TextInput,TouchableOpacity,Image,StyleSheet,Alert,Linking,StatusBar, ActivityIndicator
+import React, {useEffect, useState, useContext} from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Image,
+  StyleSheet,
+  Alert,
+  Linking,
+  StatusBar,
+  ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { GlobalContext } from '../global/GlobalState';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,43 +20,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginUser({navigation}) {
-
-  // variables
   const [login, setLogin] = useState('');
   const [mdp, setMdp] = useState('');
-
   const [user, setUser] = useContext(GlobalContext);
-  //const [user, setUser] = useState('');
-
-  const [isSubmitting, setIsSubmitting] = useState(false); // Add a state to track form submission
-  const [errors, setErrors] = useState({}); // Add a state to hold the error messages
-
-  const [visible, setVisible] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
   const [showmdp, setShowmdp] = useState(false);
-  const hideDialog = () => setVisible(false);
 
   useEffect(() => {
-    // Vérifier si l'utilisateur est connecté
     if (navigation && user) {
       navigation.navigate('BottomTabs');
     }
   }, [user]);
 
   const handleLogin = async () => {
-
     if (!login || !mdp) {
       setErrors({
-        // Update error state with appropriate error messages
         login: !login ? 'Le champ Utilisateur est obligatoire' : '',
         mdp: !mdp ? 'Le champ Mot de passe est obligatoire' : '',
       });
       return;
     }
 
-    setIsSubmitting(true); // Set submitting state to true while sending the data
+    setIsSubmitting(true);
 
     try {
-      // Effectuer une validation du login et mot de passe ici
       const response = await fetch('https://rouah.net/api/connexion.php', {
         method: 'POST',
         headers: {
@@ -56,64 +57,76 @@ export default function LoginUser({navigation}) {
       });
       const data = await response.json();
 
-       if (data[0].login) {
-        // stockage
+      if (data[0].login) {
         if (data[0].matricule) {
-      await AsyncStorage.setItem('matricule', data[0].matricule);
-    }
-              // Rediriger ou stocker token
-              setUser(data[0]);
-              navigation.navigate("BottomTabs");
-            } else {
-              Alert.alert('Erreur', data || 'Identifiants incorrects');
-            }
-
+          await AsyncStorage.setItem('matricule', data[0].matricule);
+        }
+        setUser(data[0]);
+        navigation.navigate("BottomTabs");
+      } else {
+        Alert.alert('Erreur', data || 'Identifiants incorrects');
+      }
     } catch (error) {
-      Alert.alert(error);
-    };
-
+      Alert.alert("Erreur", error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
-
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-
       <StatusBar backgroundColor="white" barStyle="dark-content" />
-      <View style={styles.inner}>
-        <Text style={styles.title}>Rouah</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.keyboardAvoidingView}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.inner}>
+            <Text style={styles.title}>Rouah</Text>
 
-        <Image
-          source={require('../assets/logo-original.png')} // Remplace par ton chemin réel
-          style={styles.logo}
-          resizeMode="contain"
-        />
+            <Image
+              source={require('../assets/logo-original.png')}
+              style={styles.logo}
+              resizeMode="contain"
+            />
 
-        <Text style={styles.message}>Espace de connexion</Text>
+            <Text style={styles.message}>Espace de connexion</Text>
 
-        <TextInput
-          style={[styles.input, { borderColor: errors.login ? 'red' : '#ccc' }]}
-          placeholder="Utilisateur"
-          errorText={errors.login}
-          value={login}
-          onChangeText={setLogin}
-          autoCapitalize="none"
-          />
-        {errors.login ? (
-              <Text style={{ color: 'red', marginTop: -10, marginBottom: 15 }}>{errors.login}</Text>
-            ) : null}
+            {/* Champ Utilisateur */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.label, { color: errors.login ? 'red' : '#555' }]}>
+                Utilisateur
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: errors.login ? 'red' : '#ccc' }]}
+                value={login}
+                onChangeText={setLogin}
+                autoCapitalize="none"
+                returnKeyType="next"
+              />
+              {errors.login && (
+                <Text style={styles.errorText}>{errors.login}</Text>
+              )}
+            </View>
 
-       <View style={styles.inputContainer}>
-        <TextInput
-          style={[styles.input, { borderColor: errors.mdp ? 'red' : '#ccc' }]}
-          placeholder="Mot de passe"
-          errorText={errors.mdp}
-          secureTextEntry={!showmdp}
-          value={mdp}
-          onChangeText={setMdp}
-          maxLength={6}
-          keyboardType="numeric"
-        />
-        <TouchableOpacity
+            {/* Champ Mot de passe */}
+            <View style={styles.inputContainer}>
+              <Text style={[styles.label, { color: errors.mdp ? 'red' : '#555' }]}>
+                Mot de passe
+              </Text>
+              <TextInput
+                style={[styles.input, { borderColor: errors.mdp ? 'red' : '#ccc' }]}
+                secureTextEntry={!showmdp}
+                value={mdp}
+                onChangeText={setMdp}
+                maxLength={6}
+                keyboardType="numeric"
+                returnKeyType="done"
+              />
+              <TouchableOpacity
                 style={styles.mdpIconContainer}
                 onPress={() => setShowmdp(!showmdp)}
               >
@@ -123,31 +136,37 @@ export default function LoginUser({navigation}) {
                   color="#A5A5AE"
                 />
               </TouchableOpacity>
-        </View>
-        {errors.mdp ? (
-              <Text style={{ color: 'red', marginTop: -10, marginBottom: 15 }}>{errors.mdp}</Text>
-            ) : null}
+              {errors.mdp && (
+                <Text style={styles.errorText}>{errors.mdp}</Text>
+              )}
+            </View>
 
-        {isSubmitting && (
-              <ActivityIndicator size="large" color="blue" />
+            {isSubmitting && (
+              <ActivityIndicator size="large" color="#fa4447" />
             )}
 
-        <TouchableOpacity style={styles.btn} onPress={handleLogin}>
-          <Text style={styles.buttonText}>Se connecter</Text>
-        </TouchableOpacity>
+            <TouchableOpacity 
+              style={styles.btn} 
+              onPress={handleLogin}
+              disabled={isSubmitting}
+            >
+              <Text style={styles.buttonText}>Se connecter</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => Linking.openURL('#')}>
-          <Text style={styles.link}>Mot de passe oublié ?</Text>
-        </TouchableOpacity>
+            <TouchableOpacity onPress={() => Linking.openURL('#')}>
+              <Text style={styles.link}>Mot de passe oublié ?</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Inscription')}>
-          <Text style={styles.link}>Créer un compte ?</Text>
-        </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Inscription')}>
+              <Text style={styles.link}>Créer un compte ?</Text>
+            </TouchableOpacity>
 
-         <TouchableOpacity onPress={() => navigation.navigate('Bienvenue')}>
-          <Text style={styles.link}>Retour</Text>
-        </TouchableOpacity>
-      </View>
+            <TouchableOpacity onPress={() => navigation.navigate('Bienvenue')}>
+              <Text style={styles.link}>Retour</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -156,6 +175,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  keyboardAvoidingView: {
+    flex: 1,
+  },
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
   },
   inner: {
@@ -179,8 +204,23 @@ const styles = StyleSheet.create({
   message: {
     marginBottom: 20,
     fontSize: 16,
-    color: '#555',
+    color: '#403b3b',
     textAlign: 'center',
+    fontWeight: 'bold',
+  },
+  inputContainer: {
+    width: '100%',
+    marginBottom: 15,
+    position: 'relative',
+  },
+  label: {
+    position: 'absolute',
+    left: 12,
+    top: -8,
+    backgroundColor: 'white',
+    paddingHorizontal: 4,
+    fontSize: 12,
+    zIndex: 1,
   },
   input: {
     width: '100%',
@@ -188,17 +228,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#bbb',
     borderRadius: 8,
-    marginBottom: 15,
+    zIndex: 0,
   },
-  button: {
-    width: '100%',
-    padding: 14,
-    backgroundColor: '#403b3b', // Couleur Hostinger / personnalisée
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 20,
+  errorText: {
+    color: 'red',
+    marginTop: 4,
+    fontSize: 12,
   },
-   btn: {
+  btn: {
     width: '100%',
     padding: 14,
     backgroundColor: '#fa4447',
@@ -214,17 +251,11 @@ const styles = StyleSheet.create({
     color: '#403b3b',
     marginBottom: 15,
     textAlign: 'center',
-    fontWeight:'bold'
+    fontWeight: 'bold'
   },
   mdpIconContainer: {
     position: 'absolute',
-    top: 10,
-    right: -12,
-    zIndex: 1,
-    height:50,
-    width : 48,
-  },
-   inputContainer: {
-    width:"100%",
+    right: 12,
+    top: 12,
   },
 });

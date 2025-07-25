@@ -8,7 +8,8 @@ import {
   Linking, 
   Platform,
   Vibration,
-  Dimensions
+  Dimensions,
+  Image
 } from 'react-native';
 import { Audio } from 'expo-av';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,14 +20,33 @@ const { width, height } = Dimensions.get('window');
 
 export default function SignalAlerte({ route }) {
   const { id_geoip, latitude, longitude, adresse, utilisateur_id } = route.params;
+
   const [isModalVisible, setModalVisible] = useState(false);
   const [countdown, setCountdown] = useState(5);
   const countdownRef = useRef(null);
+  const [data, setData] = useState("");
+  const [error, setError] = useState(null);
   
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const buttonFadeAnim = useRef(new Animated.Value(1)).current;
   const soundRef = useRef(null);
+
+  // Affichage du profil
+  useEffect(() => {
+    const getProfil = async () => {
+      try {
+        const response = await fetch(`https://rouah.net/api/affichage-profil.php?matricule=${utilisateur_id}`);
+        const newData = await response.json();
+        setData(newData[0]);
+      } catch (error) {
+        setError(error);
+        console.error('Erreur chargement profil:', error);
+      }
+    };
+
+    getProfil();
+  }, [utilisateur_id]);
 
   // Animation de pulsation pour l'icône d'alerte
   useEffect(() => {
@@ -91,7 +111,7 @@ export default function SignalAlerte({ route }) {
     };
 
     loadSound();
-    startCountdown ();
+    startCountdown();
     Vibration.vibrate([500, 500, 500], true);
 
     return () => {
@@ -131,7 +151,6 @@ export default function SignalAlerte({ route }) {
       soundRef.current.stopAsync();
     }
     Vibration.cancel();
-    // Ici vous pourriez ajouter une logique pour notifier le serveur que l'alerte est terminée
   };
 
   const openGoogleMaps = () => {
@@ -150,6 +169,13 @@ export default function SignalAlerte({ route }) {
     });
   };
 
+  const handleCall = () => {
+    if (data.telephone) {
+      const phoneNumber = `tel:${data.telephone}`;
+      Linking.openURL(phoneNumber);
+    }
+  };
+
   return (
     <LinearGradient 
       colors={['#ff0000', '#cc0000']} 
@@ -164,12 +190,38 @@ export default function SignalAlerte({ route }) {
         {/* Titre */}
         <Text style={styles.title}>ALERTE URGENCE</Text>
         
+        {/* Profil utilisateur */}
+        <View style={styles.profileContainer}>
+          {data?.photo64 ? (
+            <Image 
+              source={{ uri: `data:${data?.type};base64,${data?.photo64}` }} 
+              style={styles.profileImage}
+            />
+          ) : (
+            <View style={styles.defaultImage}>
+              <MaterialIcons name="person" size={40} color="#fff" />
+            </View>
+          )}
+          
+          <View style={styles.profileInfo}>
+            <Text style={styles.profileName}>{data?.nom_prenom || 'Utilisateur'}</Text>
+            <Text style={styles.profileMatricule}>Tél : {data?.telephone}</Text>
+            
+            <TouchableOpacity 
+              style={styles.callButton}
+              onPress={handleCall}
+              disabled={!data?.telephone}
+            >
+              <MaterialIcons name="call" size={20} color="#fff" />
+              <Text style={styles.callButtonText}>Appeler</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* Informations */}
         <View style={styles.infoBox}>
-          <Text style={styles.infoText}>ID: {id_geoip}</Text>
-          <Text style={styles.infoText}>Utilisateur: {utilisateur_id}</Text>
-          <Text style={styles.infoText}>Localisation: {latitude}, {longitude}</Text>
-          <Text style={styles.infoText}>Adresse: {adresse}</Text>
+          <Text style={styles.infoText}>Coordonnées GPS : Latitude ({latitude}), Longitude ({longitude})</Text>
+          <Text style={styles.infoText}>Adresse : {adresse}</Text>
         </View>
 
         {/* Boutons d'action */}
@@ -234,6 +286,63 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 3,
   },
+  profileContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 15,
+    padding: 15,
+    marginBottom: 20,
+    width: '90%',
+  },
+  profileImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  defaultImage: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 15,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 5,
+  },
+  profileMatricule: {
+    fontSize: 14,
+    color: '#fff',
+    marginBottom: 10,
+  },
+  callButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#34A853',
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  callButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 5,
+  },
   infoBox: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 15,
@@ -264,10 +373,10 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   mapButton: {
-    backgroundColor: '#4285F4', // Bleu Google
+    backgroundColor: '#4285F4',
   },
   stopButton: {
-    backgroundColor: '#0A84FF', // Bleu iOS
+    backgroundColor: '#0A84FF',
   },
   buttonText: {
     color: '#fff',

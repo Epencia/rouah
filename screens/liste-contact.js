@@ -257,7 +257,7 @@ const getListeContact2 = async () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={[]}>
       {/* Barre de recherche */}
       {contacts.length > 0 ? (
         <View style={styles.searchBar}>

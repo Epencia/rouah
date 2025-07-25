@@ -8,9 +8,11 @@ import {
   Alert, 
   ActivityIndicator, 
   TouchableOpacity, 
-  Linking 
+  Linking,
+  Modal,
+  Dimensions,
+  SafeAreaView
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {MaterialCommunityIcons, Feather, MaterialIcons} from '@expo/vector-icons';
 
@@ -18,31 +20,30 @@ const AnnonceDetails = ({navigation, route}) => {
   const [annonce, setAnnonce] = useState(null);
   const [loading, setLoading] = useState(true);
   const [matricule, setMatricule] = useState(null);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState('');
 
   // Récupérer les paramètres de navigation
   const { code } = route.params;
 
-
-useEffect(() => {
-  const fetchMatricule = async () => {
-    const storedMatricule = await AsyncStorage.getItem('matricule');
-    setMatricule(storedMatricule);
-  };
-  
-  fetchMatricule();
-}, []);
+  useEffect(() => {
+    const fetchMatricule = async () => {
+      const storedMatricule = await AsyncStorage.getItem('matricule');
+      setMatricule(storedMatricule);
+    };
+    
+    fetchMatricule();
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Récupérer le matricule de l'utilisateur connecté
         const matricule = await AsyncStorage.getItem('matricule');
-       if (!matricule) {
-      console.warn('⚠️ Veuillez vous connecter pour accéder à cette fonctionnalité.');
-      return;
-      }
+        if (!matricule) {
+          console.warn('⚠️ Veuillez vous connecter pour accéder à cette fonctionnalité.');
+          return;
+        }
 
-        // Récupérer les détails de l'annonce avec les infos utilisateur
         const response = await fetch(`https://rouah.net/api/details-annonce.php?code=${code}`);
         const data = await response.json();
         
@@ -61,35 +62,28 @@ useEffect(() => {
     };
 
     fetchData();
-
-    // Configurer le header de navigation
     navigation.setOptions({
       title: 'Détails de l\'annonce',
     });
   }, [code]);
 
-  // Validation
   useEffect(() => {
     const trackView = async () => {
       try {
-        // 1. Récupérer le matricule
         const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      console.warn('⚠️ Veuillez vous connecter pour accéder à cette fonctionnalité.');
-      return;
-    }
+        if (!matricule) {
+          console.warn('⚠️ Veuillez vous connecter pour accéder à cette fonctionnalité.');
+          return;
+        }
 
-        // 2. Appeler l'API
         const response = await fetch(
           `https://rouah.net/api/validation-annonce.php?code=${code}&matricule=${matricule}`
         );
 
-        // 3. Vérifier la réponse
         if (!response.ok) throw new Error('Erreur réseau');
 
         const data = await response.json();
 
-        // 4. Traiter le résultat
         if (data.success) {
           console.log('Suivi réussi:', data.message);
         } else {
@@ -121,6 +115,15 @@ useEffect(() => {
     }
   };
 
+  const openImageModal = (imageUri) => {
+    setSelectedImage(imageUri);
+    setImageModalVisible(true);
+  };
+
+  const closeImageModal = () => {
+    setImageModalVisible(false);
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -138,97 +141,130 @@ useEffect(() => {
   }
 
   return (
-     <SafeAreaView style={styles.container} edges={[]}>
-    <ScrollView>
-      {/* Image de l'annonce */}
-      {annonce.photo64_annonce && (
-        <Image 
-          source={{ uri: `data:${annonce.type_annonce};base64,${annonce.photo64_annonce}` }} 
-          style={styles.image}
-          resizeMode="cover"
-        />
-      )}
-
-      {/* Section annonceur */}
-      <View style={styles.publisherContainer}>
-        {annonce.photo64 && (
-          <Image 
-            source={{ uri: `data:${annonce.type};base64,${annonce.photo64}` }}
-            style={styles.publisherImage}
-          />
+    <SafeAreaView style={styles.container} edges={[]}>
+      <ScrollView>
+        {/* Image de l'annonce avec TouchableOpacity */}
+        {annonce.photo64_annonce && (
+          <TouchableOpacity onPress={() => openImageModal(`data:${annonce.type_annonce};base64,${annonce.photo64_annonce}`)}>
+            <Image 
+              source={{ uri: `data:${annonce.type_annonce};base64,${annonce.photo64_annonce}` }} 
+              style={styles.image}
+              resizeMode="cover"
+            />
+          </TouchableOpacity>
         )}
-        <View style={styles.publisherInfo}>
-          <Text style={styles.publisherName}>{annonce.nom_prenom}</Text>
-          {annonce.vues !==annonce.audience && (
-            <Text style={styles.publisherRating}>
-                <MaterialCommunityIcons
-                  name={'star'} 
-                  size={16} 
-                  color="#f39c12" 
-                />
-              {annonce.categorie || "Sponsorisé"}
-            </Text>
+
+        {/* Section annonceur */}
+        <View style={styles.publisherContainer}>
+          {annonce.photo64 && (
+            <TouchableOpacity onPress={() => openImageModal(`data:${annonce.type};base64,${annonce.photo64}`)}>
+              <Image 
+                source={{ uri: `data:${annonce.type};base64,${annonce.photo64}` }}
+                style={styles.publisherImage}
+              />
+            </TouchableOpacity>
           )}
-        </View>
-      </View>
-
-      {/* Titre */}
-      <Text style={styles.title}>{annonce.titre}</Text>
-
-      {/* Prix et quantité */}
-      <View style={styles.priceContainer}>
-        <Text style={styles.quantity}>Vues : {annonce.vues}</Text>
-        <Text style={styles.quantity}>Audience : {annonce.quantite}</Text>
-      </View>
-
-      {/* Description */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Description</Text>
-        <Text style={styles.description}>{annonce.description}</Text>
-      </View>
-
-      {/* Informations supplémentaires */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Informations</Text>
-        <Text>Publiée le : {annonce.date} à {annonce.heure}</Text>
-      </View>
-
-      {/* Boutons de contact */}
-      {matricule == annonce.utilisateur_id && annonce.telephone && (
-        <View style={styles.contactContainer}>
-          <Text style={styles.contactTitle}>Contacter l'annonceur</Text>
-          
-          <View style={styles.contactButtons}>
-            <TouchableOpacity 
-              style={[styles.contactButton, styles.callButton]}
-              onPress={handleCall}
-            >
-              <MaterialIcons name="call" size={20} color="#fff" />
-              <Text style={styles.buttonText}>Appel</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.contactButton, styles.smsButton]}
-              onPress={handleSMS}
-            >
-              <MaterialIcons name="sms" size={20} color="#fff" />
-              <Text style={styles.buttonText}>SMS</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={[styles.contactButton, styles.whatsappButton]}
-              onPress={handleWhatsApp}
-            >
-              <MaterialCommunityIcons name="whatsapp" size={20} color="#fff" />
-              <Text style={styles.buttonText}>WhatsApp</Text>
-            </TouchableOpacity>
+          <View style={styles.publisherInfo}>
+            <Text style={styles.publisherName}>{annonce.nom_prenom}</Text>
+            {annonce.vues !== annonce.audience && (
+              <Text style={styles.publisherRating}>
+                  <MaterialCommunityIcons
+                    name={'star'} 
+                    size={16} 
+                    color="#f39c12" 
+                  />
+                {annonce.categorie || "Sponsorisé"}
+              </Text>
+            )}
           </View>
         </View>
-      )}
-    </ScrollView>
+
+        {/* Titre */}
+        <Text style={styles.title}>{annonce.titre}</Text>
+
+        {/* Prix et quantité */}
+        <View style={styles.priceContainer}>
+          <Text style={styles.quantity}>Vues : {annonce.vues}</Text>
+          <Text style={styles.quantity}>Audience : {annonce.quantite}</Text>
+        </View>
+
+        {/* Description */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Description</Text>
+          <Text style={styles.description}>{annonce.description}</Text>
+        </View>
+
+        {/* Informations supplémentaires */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informations</Text>
+          <Text>Publiée le : {annonce.date} à {annonce.heure}</Text>
+        </View>
+
+        {/* Boutons de contact */}
+        {matricule !== annonce.matricule && annonce.telephone ? (
+          <View style={styles.contactContainer}>
+            <Text style={styles.contactTitle}>Contacter l'annonceur</Text>
+            
+            <View style={styles.contactButtons}>
+              <TouchableOpacity 
+                style={[styles.contactButton, styles.callButton]}
+                onPress={handleCall}
+              >
+                <MaterialIcons name="call" size={20} color="#fff" />
+                <Text style={styles.buttonText}>Appel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.contactButton, styles.smsButton]}
+                onPress={handleSMS}
+              >
+                <MaterialIcons name="sms" size={20} color="#fff" />
+                <Text style={styles.buttonText}>SMS</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.contactButton, styles.whatsappButton]}
+                onPress={handleWhatsApp}
+              >
+                <MaterialCommunityIcons name="whatsapp" size={20} color="#fff" />
+                <Text style={styles.buttonText}>WhatsApp</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          ) : (
+        
+        <View>
+            <Text style={styles.contactTitle2}>Vous êtes le propriétaire de cette annonce</Text>
+        </View>
+        )}
+      </ScrollView>
+
+      {/* Modal pour afficher l'image en plein écran */}
+      <Modal
+        visible={imageModalVisible}
+        transparent={true}
+        onRequestClose={closeImageModal}
+      >
+        <View style={styles.modalContainer}>
+          <TouchableOpacity 
+            style={styles.closeButton} 
+            onPress={closeImageModal}
+          >
+            <MaterialIcons name="close" size={30} color="#fff" />
+          </TouchableOpacity>
+          <Image
+            source={{ uri: selectedImage }}
+            style={styles.fullScreenImage}
+            resizeMode="contain"
+          />
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
+
+const windowWidth = Dimensions.get('window').width;
+const windowHeight = Dimensions.get('window').height;
 
 const styles = StyleSheet.create({
   container: {
@@ -285,11 +321,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2ecc71',
-  },
   quantity: {
     fontSize: 16,
     color: '#7f8c8d',
@@ -318,6 +349,13 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     color: '#2c3e50',
   },
+  contactTitle2: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 15,
+    color: '#2c3e50',
+    textAlign:"center"
+  },
   contactButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -345,6 +383,25 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: 'bold',
   },
+  // Styles pour la modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenImage: {
+    width: windowWidth,
+    height: windowHeight * 0.8,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 5,
+  },
 });
-
 export default AnnonceDetails;

@@ -31,7 +31,7 @@ export default function EditionAnnonce() {
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ImagePicker.Images,
       allowsEditing: true,
       base64: true,
       aspect: [4, 3],
