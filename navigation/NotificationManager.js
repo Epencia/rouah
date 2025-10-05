@@ -77,31 +77,6 @@ const NotificationManager = () => {
         // autres params si nécessaire
       });
     }
-    // Details de signal 
-    if (parts[0] === 'signal' && navigationRef.current) {
-      navigationRef.current.navigate("Signal d'alerte", {
-        id_geoip: parts[1],
-        utilisateur_id: parts[2] || '',
-        latitude: parts[3] ? parseFloat(parts[3]) : 0,
-        longitude: parts[4] ? parseFloat(parts[4]) : 0,
-        adresse: parts[5] ? decodeURIComponent(parts[5]) : ''
-        // autres params si nécessaire
-      });
-    }
-    // Details zones dangereuses
-    if (parts[0] === 'zones_dangereuses' && navigationRef.current) {
-      navigationRef.current.navigate("Zones dangereuses", {
-        code_zone: parts[1],
-        nom_zone: parts[2] || '',
-        latitude: parts[3] ? parseFloat(parts[3]) : 0,
-        longitude: parts[4] ? parseFloat(parts[4]) : 0,
-        adresse: parts[5] ? decodeURIComponent(parts[5]) : '',
-        distance_km: parts[6],
-        distance_m: parts[7],
-        observation_zone: parts[8]
-        // autres params si nécessaire
-      });
-    }
 
   };
 
@@ -119,27 +94,7 @@ const NotificationManager = () => {
         });
     }
 
-    // Gestion des notifications de signal sos
-    if (data?.screen === "Signal d'alerte" && navigationRef.current) {
-      navigationRef.current.navigate("Signal d'alerte", {
-            id_geoip: data.params.id_geoip,
-            utilisateur_id: data.params.utilisateur_id,
-            latitude: data.params.latitude,
-            longitude: data.params.longitude,
-            adresse: data.params.adresse
-        });
-    } 
-    // Zones dangereuses
-    if (data?.screen === "Zones dangereuses" && navigationRef.current) {
-      navigationRef.current.navigate("Zones dangereuses", {
-            code_zone: data.params.code_zone,
-            nom_zone: data.params.nom_zone,
-            observation_zone: data.params.observation_zone,
-            latitude: data.params.latitude,
-            longitude: data.params.longitude,
-            adresse: data.params.adresse
-        });
-    } 
+    
 
   };
 

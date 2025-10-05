@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#2563EB',
+    color: '#fa4447',
     fontWeight: '500',
   },
 });

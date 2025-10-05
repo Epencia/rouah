@@ -13,7 +13,7 @@
       "assets/**/*"
     ],
     "splash": {
-      "image": "./assets/logo-icon.png",
+      "image": "./assets/adaptive-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -27,9 +27,20 @@
         ],
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position en permanence pour détecter les situations d'urgence.",
         "NSLocationWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position pour fournir les services de protection.",
-        "NSMotionUsageDescription": "Cette application a besoin d'accéder aux capteurs de mouvement pour détecter les chutes ou accidents."
+        "NSMotionUsageDescription": "Cette application a besoin d'accéder aux capteurs de mouvement pour détecter les chutes ou accidents.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSExceptionDomains": {
+            "rouah.net": {
+              "NSIncludesSubdomains": true,
+              "NSTemporaryExceptionAllowsInsecureHTTPLoads": true,
+              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.1"
+            }
+          }
+        }
       },
-      "bundleIdentifier": "com.mandigoentreprise.rouah"
+      "bundleIdentifier": "com.mandigoentreprise.rouah",
+      "usesCleartextTraffic": true
     },
     "android": {
       "icon": "./assets/logo-icon.png",
@@ -46,7 +57,10 @@
               "host": "*"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ],
       "edgeToEdgeEnabled": true,
@@ -65,8 +79,14 @@
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.WAKE_LOCK",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.ACTIVITY_RECOGNITION"
-      ]
+        "android.permission.ACTIVITY_RECOGNITION",
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "usesCleartextTraffic": true,
+      "networkSecurityConfig": "@xml/network_security_config"
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -110,7 +130,11 @@
         {
           "motionPermission": "Cette application a besoin d'accéder à vos capteurs de mouvement pour détecter les situations d'urgence."
         }
-      ]
+      ],
+      "expo-secure-store",
+      "expo-font",
+      "expo-video",
+      "expo-asset"
     ],
     "notification": {
       "icon": "./assets/favicon.png",

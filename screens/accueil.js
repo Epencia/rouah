@@ -1,18 +1,33 @@
 import React, { useState, useContext, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { View,Image, Pressable, Text, ScrollView, StyleSheet, Dimensions, TouchableOpacity,Alert } from 'react-native';
 import { BarChart, PieChart } from 'react-native-gifted-charts';
+import QRCode from 'react-native-qrcode-svg';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { GlobalContext } from '../global/GlobalState';
 
 export default function Accueil() {
+
   const screenWidth = Dimensions.get('window').width;
   const chartWidth = screenWidth - 40;
+
+
+  const rotation = useSharedValue(0);
+    const [flipped, setFlipped] = useState(false);
+    const [showBalance, setShowBalance] = useState(true);
 
   // variables
   const [user] = useContext(GlobalContext);
   const [annonce, setAnnonce] = useState([]);
+  const [caisse, setCaisse] = useState(null);
   const [BarData, setBarData] = useState([]);
   const [PieData, setPieData] = useState([]);
   const [error, setError] = useState(null);
+
+  // Formatage des montants
+  const formatAmount = (value) => {
+    if (!value) return "0";
+    return parseFloat(value).toLocaleString("fr-FR", { minimumFractionDigits: 0 });
+  };
 
   // Données pour les graphiques
 
@@ -40,14 +55,33 @@ export default function Accueil() {
   // Calcul du total pour le PieChart
   const total = PieData.reduce((sum, item) => sum + item.value, 0);
 
+  // carte Rouah
+    const flip = () => {
+      setFlipped(!flipped);
+      rotation.value = withTiming(flipped ? 0 : 180, { duration: 600 });
+    };
+  
+    const frontAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ rotateY: `${rotation.value}deg` }],
+      zIndex: rotation.value < 90 ? 1 : 0,
+    }));
+  
+    const backAnimatedStyle = useAnimatedStyle(() => ({
+      transform: [{ rotateY: `${rotation.value + 180}deg` }],
+      zIndex: rotation.value >= 90 ? 1 : 0,
+    }));
+
+
   useEffect(() => {
     const delay = 10000;
     getAnnonces();
+    getCaisse();
     getBarData();
     getPieData();
     const intervalId = setInterval(getAnnonces, delay);
     return () => clearInterval(intervalId);
   }, []);
+
 
   const getAnnonces = async () => {
     try {
@@ -59,19 +93,18 @@ export default function Accueil() {
     }
   };
 
+  const getCaisse = async () => {
+    try {
+      const response = await fetch(`https://rouah.net/api/caisses-solde.php?utilisateur_id=${user?.matricule}`);
+      const newData = await response.json();
+      setCaisse(newData);
+    } catch (error) {
+      setError(error);
+    }
+  };
+
   // Composant de légende
-  const renderLegend = () => (
-    <View style={styles.legendContainer}>
-      {PieData.map((item, index) => (
-        <View key={index} style={styles.legendItem}>
-          <View style={[styles.legendColor, { backgroundColor: item.color }]} />
-          <Text style={styles.legendText}>
-            {item.label}: {((item.value / total) * 100).toFixed(1)}%
-          </Text>
-        </View>
-      ))}
-    </View>
-  );
+
 
   return (
     <ScrollView
@@ -85,7 +118,7 @@ export default function Accueil() {
       {/* Cartes de statistiques */}
       <View style={styles.statsContainer}>
         <View style={styles.statCard}>
-          <Text style={styles.statValue}>{user?.solde || 0}</Text>
+          <Text style={styles.statValue}>{formatAmount(user?.solde) || 0}</Text>
           <Text style={styles.statLabel}>Solde</Text>
         </View>
         <View style={styles.statCard}>
@@ -95,63 +128,64 @@ export default function Accueil() {
           <Text style={styles.statLabel}>Annonces</Text>
         </View>
         <View style={styles.statCard}>
-          {PieData  && (
-          <Text style={styles.statValue}>{PieData.find(item => item.label === "Revenu")?.value || 0}</Text>
-           )}
-          <Text style={styles.statLabel}>Revenus</Text>
+          <Text style={styles.statValue}>{formatAmount(caisse?.solde) || 0}</Text>
+          <Text style={styles.statLabel}>Caisse</Text>
         </View>
       </View>
 
-      {/* Graphique en barres */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Graphe d'évolution des publications</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <BarChart
-            data={BarData}
-            width={Math.max(chartWidth, BarData.length * 50)}
-            height={220}
-            barWidth={22}
-            frontColor="#fa4447"
-            noOfSections={4}
-            yAxisThickness={0}
-            xAxisThickness={0}
-            spacing={20}
-          />
-        </ScrollView>
-      </View>
+  <View style={styles.profileContent}>
+      <Pressable onPress={flip} style={styles.cardWrapper}>
+              {/* Recto */}
+              <Animated.View style={[styles.card, frontAnimatedStyle]}>
+                <View style={styles.qrWrapper}>
+                  <Image
+                    source={require('../assets/logo.png')}
+                    style={styles.filigrane}
+                  />
+                  <View style={{ alignItems: 'center', justifyContent: 'center', padding: 20,borderWidth: 0, }}>
+                  {user && user.length > 0 && user.matricule ? (
+             <QRCode
+                value={user.matricule}
+                size={200}
+                backgroundColor="white"
+                color="black"
+              />
+                 ) : (
+             <QRCode
+                value="001"
+                size={200}
+                backgroundColor="white"
+                color="black"
+              />
+                  )}
+                  </View>
+                  <Image
+                    source={require('../assets/logo.png')}
+                    style={styles.qrLogo}
+                  />
+                </View>
+              </Animated.View>
+      
+              {/* Verso */}
+              <Animated.View style={[styles.card, styles.backCard, backAnimatedStyle]}>
+                <Text style={styles.backText}>Rouah</Text>
+              </Animated.View>
+            </Pressable>
+    </View>
 
-      {/* Graphique en camembert avec légende */}
-      <View style={styles.chartContainer}>
-        <Text style={styles.chartTitle}>Répartitions financières</Text>
-        <View style={styles.pieChartContainer}>
-          <PieChart
-            data={PieData}
-            showText
-            textColor="black"
-            radius={70}
-            textSize={12}
-            focusOnPress
-            showValuesAsLabels
-            showTextBackground
-            textBackgroundRadius={15}
-            centerLabelComponent={() => (
-              <View style={styles.centerLabel}>
-                <Text style={styles.centerLabelText}>Total</Text>
-                <Text style={styles.centerLabelValue}>{total}</Text>
-              </View>
-            )}
-          />
-          {renderLegend()}
-        </View>
-      </View>
+
+
+  
     </ScrollView>
   );
 };
+
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+    
   },
   scrollContent: {
     padding: 16,
@@ -247,5 +281,69 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 12,
     color: '#333'
-  }
+  },
+  // carte
+  cardWrapper: {
+    width: 250,
+    height: 350,
+    perspective: 1000,
+  },
+  card: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    borderWidth:1,
+    borderColor:"#fa4447",
+    backfaceVisibility: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backCard: {
+    backgroundColor: '#fa4447',
+    transform: [{ rotateY: '180deg' }],
+  },
+  backText: {
+    fontSize: 55,
+    color: 'white',
+    fontFamily: 'Poppins',
+  },
+  qrWrapper: {
+    width: 200,
+    height: 200,
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  qrCode: {
+    width: 200,
+    height: 200,
+    position: 'absolute',
+    zIndex: 2,
+  },
+  filigrane: {
+    width: 100,
+    height: 100,
+    position: 'absolute',
+    opacity: 0.1,
+    zIndex: 1,
+  },
+  qrLogo: {
+    width: 50,
+    height: 50,
+    position: 'absolute',
+    zIndex: 3,
+    borderRadius: 10,
+    backgroundColor: 'white',
+    padding: 5,
+  },
+  profileContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    marginTop:15,
+  },
+
 });

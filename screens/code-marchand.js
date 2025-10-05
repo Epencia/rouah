@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { GlobalContext } from '../global/GlobalState';
 
-export default function CodeSecurite() {
+export default function CodeMarchand() {
   const [otp, setOtp] = useState('');
   const [user] = useContext(GlobalContext);
 
@@ -24,13 +24,13 @@ export default function CodeSecurite() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Votre code de sécurité</Text>
+      <Text style={styles.title}>Votre code marchand</Text>
       
       <View style={styles.otpContainer}>
         {renderOtpBoxes()}
       </View>
       
-      <Text style={styles.note}>Veuillez le communiquer à vos proches pour devenir un membre de leurs familles</Text>
+      <Text style={styles.note}>Veuillez le communiquer pour votre identification</Text>
     </View>
   );
 }

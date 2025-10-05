@@ -18,7 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlobalContext } from '../global/GlobalState';
 
-export default function EditionZone() {
+export default function EditionBoutique() {
   const [isConnected, setIsConnected] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -28,7 +28,7 @@ export default function EditionZone() {
   const [selectedZone, setSelectedZone] = useState(null);
   const [mapReady, setMapReady] = useState(false);
   const [matricule, setMatricule] = useState('');
-  const [membres, setMembres] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [selectedMembre, setSelectedMembre] = useState(null);
   const webviewRef = useRef(null);
 
@@ -46,20 +46,20 @@ export default function EditionZone() {
     }
   };
 
-  // Fetch membres
-  const fetchMembres = async () => {
+  // Fetch categories
+  const fetchCategories = async () => {
     try {
-      const response = await fetch(`https://rouah.net/api/membres.php?matricule=${user.matricule}`);
+      const response = await fetch(`https://rouah.net/api/liste-categorie.php`);
       const data = await response.json();
-      setMembres(data);
+      setCategories(data);
     } catch (error) {
-      console.error('Erreur chargement membres:', error);
+      console.error('Erreur chargement Categories:', error);
     }
   };
 
   // Check internet connection
   useEffect(() => {
-    fetchMembres();
+    fetchCategories();
 
     let isMounted = true;
     let interval;
@@ -70,7 +70,7 @@ export default function EditionZone() {
         if (isMounted) {
           setIsConnected(status);
           if (status) {
-            fetchMembres();
+            fetchCategories();
           }
         }
       } catch (error) {
@@ -378,7 +378,7 @@ export default function EditionZone() {
                     setSelectedZone(data.zone);
                     setNomZone(data.zone.nom_zone);
                     // Trouver le membre correspondant
-                    const membre = membres.find(m => m.matricule == data.zone.utilisateur_id);
+                    const membre = categories.find(m => m.matricule == data.zone.utilisateur_id);
                     setSelectedMembre(membre);
                     setEditModalVisible(true);
                     break;
@@ -425,7 +425,7 @@ export default function EditionZone() {
                     style={styles.picker}
                   >
                     <Picker.Item label="Sélectionner un membre" value={null} />
-                    {membres.map(membre => (
+                    {categories.map(membre => (
                       <Picker.Item 
                         key={membre.matricule}
                         label={`${membre.nom_prenom} (${membre.matricule})`}
@@ -482,11 +482,11 @@ export default function EditionZone() {
                     onValueChange={(itemValue) => setSelectedMembre(itemValue)}
                     style={styles.picker}
                   >
-                    <Picker.Item label="Sélectionner un membre" value={null} />
-                    {membres.map(membre => (
+                    <Picker.Item label="Sélectionner une catégorie" value={null} />
+                    {categories.map(membre => (
                       <Picker.Item 
-                        key={membre.matricule}
-                        label={`${membre.nom_prenom} (${membre.matricule})`}
+                        key={membre.categorie_id}
+                        label={`${membre.titre_categorie}`}
                         value={membre}
                       />
                     ))}

@@ -1,377 +1,273 @@
-import {StyleSheet, View, FlatList, Image, Text, TouchableOpacity, TextInput, ActivityIndicator, ScrollView, Linking} from 'react-native';
-import React, {useEffect, useState, useContext, useMemo} from 'react';
-import {MaterialCommunityIcons, Feather, MaterialIcons} from '@expo/vector-icons';
-import {GlobalContext} from '../global/GlobalState';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import React, { useRef, useState, useEffect, useCallback, useContext } from 'react';
+import {
+  View,
+  Text,
+  Image,
+  FlatList,
+  TouchableOpacity,
+  Animated,
+  StyleSheet,
+  Dimensions,
+  RefreshControl,
+  ActivityIndicator,
+  TextInput,
+} from 'react-native';
+import { Video } from 'expo-av';
+import Swiper from 'react-native-swiper';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { GlobalContext } from '../global/GlobalState';
 
-export default function ListeAppareil({navigation}) {
-  const [isLoading, setIsLoading] = useState(false);
+const { width } = Dimensions.get('window');
+const CARD_HEIGHT = (width * 9) / 16;
+
+// ---------------- SkeletonCard ----------------
+function SkeletonCard() {
+  return (
+    <View style={styles.card}>
+      <View style={[styles.header, { padding: 10 }]}>
+        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#ccc', marginRight: 10 }} />
+        <View style={{ flex: 1 }}>
+          <View style={{ width: '50%', height: 10, backgroundColor: '#e0e0e0', marginBottom: 5 }} />
+          <View style={{ width: '30%', height: 10, backgroundColor: '#e0e0e0' }} />
+        </View>
+      </View>
+      <View style={{ padding: 10 }}>
+        <View style={{ width: '80%', height: 15, backgroundColor: '#e0e0e0', marginBottom: 5 }} />
+        <View style={{ width: '100%', height: CARD_HEIGHT, backgroundColor: '#ccc' }} />
+      </View>
+    </View>
+  );
+}
+
+// ---------------- AnnonceItem ----------------
+function AnnonceItem({ item, navigation }) {
+  const imageOpacity = useRef(new Animated.Value(0)).current;
+  const onLoad = () => {
+    Animated.timing(imageOpacity, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // Construire tableau médias (images + vidéos)
+  const medias = [];
+
+  if (item.photo) {
+    medias.push({ uri: item.photo, type: item.type_annonce });
+  }
+
+  if (item.albums && Array.isArray(item.albums)) {
+    item.albums.forEach((a) => medias.push(a));
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={() => navigation.navigate("Details d'annonce", { code: item.code })}
+    >
+      <View style={styles.card}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Image
+            source={item.user_photo ? { uri: item.user_photo } : require('../assets/logo.png')}
+            style={styles.userPhoto}
+          />
+          <View>
+            <Text style={styles.userName}>{item.nom_prenom || 'Utilisateur'}</Text>
+            <Text style={styles.date}>{item.date} {item.heure}</Text>
+          </View>
+        </View>
+
+        {/* Contenu */}
+        <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
+          {item.titre ? <Text style={styles.titre}>{item.titre}</Text> : null}
+          {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
+
+          {medias.length > 0 && (
+            <View style={{ height: CARD_HEIGHT }}>
+              <Swiper autoplay={false} showsPagination dotStyle={{ width: 8, height: 8 }} activeDotStyle={{ width: 8, height: 8 }}>
+                {medias.map((m, index) => {
+                  if (m.type?.startsWith('video')) {
+                    return (
+                      <Video
+                        key={index}
+                        source={{ uri: m.uri }}
+                        style={styles.image}
+                        resizeMode="cover"
+                        useNativeControls
+                        isLooping
+                      />
+                    );
+                  } else {
+                    return (
+                      <Animated.Image
+                        key={index}
+                        source={{ uri: m.uri }}
+                        style={[styles.image, { opacity: imageOpacity }]}
+                        resizeMode="cover"
+                        onLoad={onLoad}
+                      />
+                    );
+                  }
+                })}
+              </Swiper>
+            </View>
+          )}
+
+          <View style={styles.footer}>
+            {item.categorie ? <Text style={styles.categorie}>{item.categorie}</Text> : null}
+            {item.vues ? <Text style={styles.prix}>{item.vues} vues</Text> : null}
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// ---------------- Feed Component ----------------
+export default function ListeAnnonce({ navigation }) {
   const [data, setData] = useState([]);
-  const [error, setError] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [user, setUser] = useContext(GlobalContext);
+  const [filteredData, setFilteredData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [expandedDescriptions, setExpandedDescriptions] = useState({});
+  const [searchText, setSearchText] = useState('');
+  const [error, setError] = useState('');
+  const [user] = useContext(GlobalContext);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    getAnnonces();
-    setRefreshing(false);
-  };
+  const limit = 2;
 
-  const toggleDescription = (id) => {
-    setExpandedDescriptions(prev => ({
-      ...prev,
-      [id]: !prev[id]
-    }));
-  };
+  const loadData = useCallback((reset = false) => {
+    if (!hasMore && !reset) return;
+
+    const currentPage = reset ? 1 : page;
+    if (currentPage === 1) setLoading(true);
+    else setLoadingMore(true);
+
+    fetch(`https://rouah.net/api/liste-annonce.php?matricule=${user.matricule}&page=${currentPage}&limit=${limit}`)
+      .then(res => res.json())
+      .then(json => {
+        if (json.success) {
+          const newData = reset ? json.data : [...data, ...json.data];
+          setData(newData);
+          setFilteredData(newData);
+          setPage(reset ? 2 : page + 1);
+          setHasMore(json.data.length >= limit);
+          setError('');
+        } else {
+          setError('Erreur de chargement des annonces.');
+        }
+      })
+      .catch(() => setError('Impossible de se connecter au serveur.'))
+      .finally(() => {
+        setLoading(false);
+        setLoadingMore(false);
+        setRefreshing(false);
+      });
+  }, [page, hasMore, data]);
 
   useEffect(() => {
-    const delay = 10000;
-    getAnnonces();
-    const intervalId = setInterval(getAnnonces2, delay);
-    return () => clearInterval(intervalId);
+    loadData();
   }, []);
 
-  const getAnnonces = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(`https://rouah.net/api/liste-annonce.php?matricule=${user.matricule}`);
-      const newData = await response.json();
-      setData(newData);
-      setIsLoading(false);
-    } catch (error) {
-      setIsLoading(false);
-      setError(error);
-    }
+  const onRefresh = () => {
+    setRefreshing(true);
+    setHasMore(true);
+    loadData(true);
   };
 
-  const getAnnonces2 = async () => {
-    try {
-      const response = await fetch(`https://rouah.net/api/liste-annonce.php?matricule=${user.matricule}`, {
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      const newData = await response.json();
-      setData(newData);
-    } catch (error) {
-      setError(error);
-    }
-  };
-
-  const searchItems = useMemo(() => {
-    return () => {
-      const filteredData = data.filter(
-        item =>
-          item.titre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const handleSearch = (text) => {
+    setSearchText(text);
+    if (!text.trim()) {
+      setFilteredData(data);
+    } else {
+      const filtered = data.filter(item =>
+        (item.titre && item.titre.toLowerCase().includes(text.toLowerCase())) ||
+        (item.categorie && item.categorie.toLowerCase().includes(text.toLowerCase())) ||
+        (item.nom_prenom && item.nom_prenom.toLowerCase().includes(text.toLowerCase()))
       );
-      return filteredData;
-    };
-  }, [data, searchTerm]);
-
-  const formatDate = (dateString) => {
-    const options = {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    };
-    return new Date(dateString).toLocaleDateString('fr-FR', options);
+      setFilteredData(filtered);
+    }
   };
 
-
-  if (isLoading) {
-    return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
-        <ActivityIndicator size="large" color="#5500dc" />
-      </View>
-    );
-  }
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" color="#fa4447" />;
+  };
 
   if (error) {
     return (
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white'}}>
-        <MaterialCommunityIcons color="#266EF1" name="access-point-off" size={150} />
-        <Text style={{fontSize: 18, marginRight: 10, marginLeft: 10, marginBottom: 10}}>
-          Pas de connexion internet !
-        </Text>
-        <TouchableOpacity
-          onPress={handleRefresh}
-          style={{backgroundColor: '#0099cc', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 5}}>
-          <Text style={{color: 'white', fontSize: 16, fontWeight: 'bold', textAlign: 'center'}}>Réessayer</Text>
+      <View style={styles.errorContainer}>
+        <MaterialCommunityIcons color="#fa4447" name="access-point-off" size={150} />
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
+          <Text style={styles.retryButtonText}>Réessayer</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  if (loading && page === 1) {
+    return (
+      <FlatList
+        data={[...Array(2).keys()]}
+        keyExtractor={(_, index) => `skeleton-${index}`}
+        renderItem={() => <SkeletonCard />}
+        contentContainerStyle={{ paddingBottom: 20 }}
+      />
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={[]}>
-      {data.length > 0 ? (
-        <View style={styles.searchBar}>
-          <Feather name="search" size={24} color="gray" style={styles.searchIcon} />
-          <TextInput
-            style={styles.input}
-            placeholder="Rechercher..."
-            onChangeText={text => setSearchTerm(text)}
-            value={searchTerm}
-          />
-        </View>
-      ) : (
-        <View style={{marginTop: 25, marginRight: 15, marginLeft: 15, elevation: 5, backgroundColor: 'white', borderRadius: 6, marginBottom: 5}}>
-          <Text style={{marginTop: 10, marginRight: 15, marginLeft: 15, marginBottom: 15, color: '#888', textAlign: 'center'}}>
-            Aucune donnée disponible
-          </Text>
-        </View>
-      )}
+    <View style={{ flex: 1 }}>
+      <View style={styles.searchBar}>
+                <Feather name="search" size={24} color="gray" style={styles.searchIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Rechercher une annonce..."
+              value={searchText}
+              onChangeText={handleSearch}
+            />
+            </View>
 
       <FlatList
-        data={searchTerm ? searchItems() : data}
-        keyExtractor={(item) => item.code}
-        renderItem={({item}) => (
-          <View style={styles.annonceCard}>
-            {/* En-tête avec photo et nom de l'auteur */}
-            <View style={styles.authorContainer}>
-              <View style={styles.authorInfo}>
-                {item.photo64 ? (
-                  <Image
-                    source={{uri: `data:${item.type};base64,${item.photo64}`}}
-                    style={styles.authorImage}
-                  />
-                ) : (
-                  <Image source={require('../assets/user.jpg')} style={styles.authorImage} />
-                )}
-                <View>
-                  <Text style={styles.authorName}>{item.nom_prenom}</Text>
-                  <Text style={styles.sponsoredTag}>{item.categorie || "Sponsorisé"}</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.annonceHeader}>
-              <View style={styles.annonceTitleContainer}>
-                <Text style={styles.annonceTitle}>{item.titre}</Text>
-                <View style={styles.dateContainer}>
-                  <MaterialIcons name="access-time" size={12} color="#8E8E93" />
-                  <Text style={styles.annonceDate}>{formatDate(item.date + 'T' + item.heure)}</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.deleteButton} onPress={() => navigation.navigate("Details d'annonce",{code: item.code })}>
-                                <MaterialCommunityIcons name="eye" size={18} color="#FF3B30" />
-              </TouchableOpacity>
-            </View>
-
-            {item.photo64_annonce ? (
-              <Image
-                source={{uri: `data:${item.type_annonce};base64,${item.photo64_annonce}`}}
-                style={styles.annonceImage}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.noImageContainer}>
-                <MaterialIcons name="image" size={40} color="#E5E5EA" />
-                <Text style={styles.noImageText}>Aucune image</Text>
-              </View>
-            )}
-
-            <View style={styles.annonceContent}>
-              <Text 
-                style={styles.annonceDescription} 
-                numberOfLines={expandedDescriptions[item.code] ? undefined : 2}
-              >
-                {item.description}
-              </Text>
-              {item.description.length > 100 && (
-                <TouchableOpacity onPress={() => toggleDescription(item.code)}>
-                  <Text style={styles.seeMoreText}>
-                    {expandedDescriptions[item.code] ? 'Voir moins' : 'Voir plus'}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-
-            <View style={styles.annonceFooter}>
-              <View style={styles.infoItem}>
-                <MaterialCommunityIcons name="eye" size={16} color="#007AFF"/>
-                <Text style={styles.infoText}>{item.vues} vues</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <MaterialIcons name="people" size={16} color="#007AFF" />
-                <Text style={styles.infoText}>Audience : {item.quantite}</Text>
-              </View>
-            </View>
-
-          </View>
-        )}
+        data={filteredData}
+        keyExtractor={item => item.code}
+        renderItem={({ item }) => <AnnonceItem item={item} navigation={navigation} />}
+        onEndReached={() => loadData()}
+        onEndReachedThreshold={0.5}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListFooterComponent={renderFooter}
+        contentContainerStyle={{ paddingBottom: 20 }}
       />
-    </SafeAreaView>
+
+    </View>
   );
 }
 
+// ---------------- Styles ----------------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'white',
-    padding: 16, 
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    backgroundColor: 'white',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'gray',
-  },
-  searchIcon: {
-    padding: 8,
-  },
-  input: {
-    flex: 1,
-    height: 40,
-  },
-  authorContainer: {
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  authorInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  authorImage: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: '#ddd',
-  },
-  authorName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-  },
-  sponsoredTag: {
-    fontSize: 12,
-    color: '#666',
-    fontWeight: 'bold',
-    marginTop: 2,
-  },
-  annonceCard: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: {width: 0, height: 2},
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-  annonceHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-  },
-  annonceTitleContainer: {
-    flex: 1,
-    marginRight: 12,
-  },
-  annonceTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
-  },
-  dateContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  annonceDate: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginLeft: 4,
-  },
-  annonceImage: {
-    width: '100%',
-    height: 200,
-  },
-  noImageContainer: {
-    height: 150,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
-  },
-  noImageText: {
-    fontSize: 14,
-    color: '#C7C7CC',
-    marginTop: 8,
-  },
-  annonceContent: {
-    padding: 16,
-  },
-  annonceDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-    textAlign: 'justify'
-  },
-  seeMoreText: {
-    color: '#fa4447',
-    fontSize: 14,
-    marginTop: 5,
-    fontWeight: '500',
-  },
-  annonceFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  infoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  infoText: {
-    fontSize: 14,
-    color: '#000',
-    marginLeft: 4,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 6,
-    marginHorizontal: 4,
-  },
-  callButton: {
-    backgroundColor: '#34C759', // Vert pour appel
-  },
-  smsButton: {
-    backgroundColor: '#007AFF', // Bleu pour SMS
-  },
-  whatsappButton: {
-    backgroundColor: '#25D366', // Vert WhatsApp
-  },
-  actionButtonText: {
-    color: 'white',
-    marginLeft: 5,
-    fontWeight: '500',
-  },
+  card: { backgroundColor: '#fff', marginVertical: 8, marginHorizontal: 10, borderRadius: 8, overflow: 'hidden', elevation: 2 },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 10 },
+  userPhoto: { width: 40, height: 40, borderRadius: 20, marginRight: 10, backgroundColor: '#ccc' },
+  userName: { fontWeight: '700', fontSize: 14 },
+  date: { fontSize: 12, color: '#888' },
+  titre: { fontSize: 16, fontWeight: '600', marginBottom: 5 },
+  description: { fontSize: 14, marginBottom: 10, color: '#555' },
+  image: { width: '100%', height: CARD_HEIGHT, backgroundColor: '#eee', borderRadius: 8 },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
+  categorie: { fontSize: 12, color: '#888' },
+  prix: { fontSize: 12, fontWeight: '700' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 6, margin: 10, paddingHorizontal: 10, elevation: 5 },
+  searchIcon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 16, color: '#333', paddingVertical: 10 },
+  searchInput: { height: 40, borderColor: '#ccc', borderWidth: 1, borderRadius: 8, margin: 10, paddingHorizontal: 10, backgroundColor: '#fff' },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  errorText: { fontSize: 16, color: '#fa4447', textAlign: 'center', marginVertical: 20 },
+  retryButton: { backgroundColor: '#fa4447', paddingVertical: 10, paddingHorizontal: 30, borderRadius: 8 },
+  retryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  floatingButtonRight: { position: 'absolute', bottom: 30, right: 20, backgroundColor: '#fa4447', width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 5 },
 });

@@ -17,26 +17,47 @@ const data = [
     libelle: 'Voir votre profil utilisateur',
     src : 'Profil'
   },
+     {
+    id: '7',
+    image: 'contacts-outline',
+    titre: "PUBLIER UNE ANNONCE",
+    libelle: "Publier une annonce",
+    src : "Edition d'annonce"
+  },
+    {
+    id: '8',
+    image: 'file-image-marker-outline',
+    titre: "MES ANNONCES",
+    libelle: "Voir mes annonces",
+    src : "Mes annonces"
+  },
   {
     id: '3',
     image: 'map-outline',
-    titre: "MAPS DES MEMBRES",
-    libelle: "Localiser mes membres",
-    src : 'Geolocalisation'
+    titre: "ANNONCES",
+    libelle: "Voir toutes les annonces",
+    src : 'Annonces'
+  },
+    {
+    id: '17',
+    image: 'shield-outline',
+    titre: "AVIS DE RECHERCHE",
+    libelle: "voir tous les avis de recherche",
+    src : 'Avis de recherche'
   },
   {
     id: '4',
-    image: 'shield-off-outline',
-    titre: "ZONES DANGÉREUSES",
-    libelle: "Définir les zones de dangers",
-    src : 'Zones dangereuses'
+    image: 'shield-outline',
+    titre: "MES ARTICLES",
+    libelle: "voir mon catalogue d'articles",
+    src : 'Mes articles'
   },
    {
     id: '5',
     image: 'lock-outline',
-    titre: "CODE DE SÉCURITÉ",
+    titre: "CODE MARCHAND",
     libelle: "Voir votre code unique",
-    src : 'Code de securite'
+    src : 'Code marchand'
   },
     {
     id: '6',
@@ -45,47 +66,13 @@ const data = [
     libelle: "Recharger votre solde",
     src : 'Paiement UVE'
   },
+
    {
-    id: '7',
-    image: 'contacts-outline',
-    titre: "AJOUTER UN MEMBRE",
-    libelle: "Ajouter un membre à votre famille",
-    src : "Edition de famille"
-  },
-    {
-    id: '8',
-    image: 'file-image-marker-outline',
-    titre: "ÉDITION D'ALERTE",
-    libelle: "Ajouter une alerte automatiquement",
-    src : "Edition d'alerte"
-  },
-   {
-    id: '9',
-    image: 'magnet',
-    titre: "DÉTECTEUR MAGNÉTIQUE",
-    libelle: "Trouvez les caméras et micros",
-    src : "Detecteur magnetique"
-  },
-   {
-    id: '10',
-    image: 'speedometer',
-    titre: "DÉTECTEUR DE VITESSE",
-    libelle: "Régler la vitesse",
-    src : "Detecteur de vitesse"
-  },
-   {
-    id: '11',
-    image: 'ghost-outline',
-    titre: "DÉTECTEUR PARANORMAL",
-    libelle: "Signaler la présence des esprits",
-    src : "Detecteur paranormal"
-  },
-    {
-    id: '12',
+    id: '16',
     image: 'access-point-network',
-    titre: "ACTIVATION ARRIÈRE-PLAN",
+    titre: "TEST",
     libelle: "Activer en arrière-plan la position",
-    src : "EmergencyService"
+    src : "Contacts"
   },
 ];
 

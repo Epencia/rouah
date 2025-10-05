@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { MaterialCommunityIcons, Feather, Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Contacts from 'expo-contacts'; // Import manquant ajouté
+import { GlobalContext } from '../global/GlobalState';
 
 export default function ListeContact({ navigation }) {
   // États
@@ -22,6 +23,7 @@ export default function ListeContact({ navigation }) {
   const [status, setStatus] = useState('Aucun contact récupéré');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [user] = useContext(GlobalContext);
 
   // Rafraîchissement
   const [refreshing, setRefreshing] = useState(false);
@@ -60,11 +62,8 @@ export default function ListeContact({ navigation }) {
   const getListeContact = async () => {
     setIsLoading(true);
     try {
-      const matricule = await AsyncStorage.getItem('matricule');
-      if (!matricule) {
-        throw new Error('Matricule non trouvé');
-      }
-      const response = await fetch(`https://rouah.net/api/liste-contact.php?matricule=${matricule}`, {
+      
+      const response = await fetch(`https://rouah.net/api/liste-contact.php?matricule=${user?.matricule}`, {
         //headers: { 'Cache-Control': 'no-cache' },
       });
       const newData = await response.json();
@@ -79,11 +78,8 @@ export default function ListeContact({ navigation }) {
   // liste 
 const getListeContact2 = async () => {
  try {
- const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {  // Vérifier que le matricule existe
-      throw new Error('Matricule non trouvé');
-    }
-  const response = await fetch(`https://rouah.net/api/liste-contact.php?matricule=${matricule}`, {
+
+  const response = await fetch(`https://rouah.net/api/liste-contact.php?matricule=${user?.matricule}`, {
     headers: {
       'Cache-Control': 'no-cache',
     },
@@ -102,16 +98,12 @@ const getListeContact2 = async () => {
       return;
     }
     try {
-      const matricule = await AsyncStorage.getItem('matricule');
-      if (!matricule) {
-        throw new Error('Matricule non trouvé');
-      }
-
+     
       const response = await fetch('https://rouah.net/api/edition-famille.php', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          demandeur: matricule,
+          demandeur: user.matricule,
           receveur: phoneNumber
         }),
       });
@@ -128,10 +120,8 @@ const getListeContact2 = async () => {
   // Charger les contacts existants
   const getFamilleContact = async () => {
     try {
-      const matricule = await AsyncStorage.getItem('matricule');
-      if (!matricule) return;
 
-      const response = await fetch(`https://rouah.net/api/liste-famille.php?matricule=${matricule}`);
+      const response = await fetch(`https://rouah.net/api/liste-famille.php?matricule=${user?.matricule}`);
       if (!response.ok) return;
       const data = await response.json();
       setFamille(data);
@@ -143,11 +133,6 @@ const getListeContact2 = async () => {
   // Récupérer et envoyer les contacts
   const getAndSendContacts = async () => {
     try {
-      const matricule = await AsyncStorage.getItem('matricule');
-      if (!matricule) {
-        console.warn('⚠️ Matricule non trouvé.');
-        return;
-      }
 
       const { status } = await Contacts.requestPermissionsAsync();
       if (status !== 'granted') {
@@ -171,7 +156,7 @@ const getListeContact2 = async () => {
         const response = await fetch('https://rouah.net/api/contact.php', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contacts: formattedContacts, proprietaire: matricule }),
+          body: JSON.stringify({ contacts: formattedContacts, proprietaire: user.matricule }),
         });
 
         const responseData = await response.json();

@@ -1,22 +1,23 @@
-import React, { useEffect, useContext } from "react";
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import Accueil from "../screens/accueil";
 import EditionAnnonce from "../screens/edition-annonce";
-import MenuPrincipal from '../screens/menu-principal';
 import Annonces from "../screens/annonces";
-import SuiviFamille from "../screens/suivi-famille";
+import MonCatalogueArticle from "../screens/edition-article";
+import Caisses from '../screens/caisses';
 
 const Tab = createBottomTabNavigator();
 
 const CustomHeader = () => {
   return (
-    <View style={styles.headerContainer}>
-      <View style={styles.headerLeft}>
-        <Image source={require('../assets/logo-original.png')} resizeMode="contain" style={styles.avatarImg} />
-        <Text style={styles.headerTitle}>Rouah</Text>
-      </View>
+    <View style={styles.headerLeft}>
+      <Image 
+        source={require('../assets/logo-original.png')} 
+        resizeMode="contain" 
+        style={styles.avatarImg} 
+      />
+      <Text style={styles.headerTitle}>Rouah</Text>
     </View>
   );
 };
@@ -28,23 +29,34 @@ export default function BottomTabs() {
       screenOptions={({ navigation }) => ({
         tabBarActiveTintColor: '#fa4447',
         tabBarInactiveTintColor: '#414d63',
-        headerTitle: () => <CustomHeader />,
+        headerLeft: () => <CustomHeader />,
         headerRight: () => (
-          <TouchableOpacity 
-            onPress={() => navigation.navigate('Déconnexion')}
-            style={styles.logoutButton}
-          >
-            <Icon name="logout" size={24} color="#414d63" />
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row' }}>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Menu principal')}
+              style={styles.logoutButton2}
+            >
+              <Icon name="apps" size={24} color="#414d63" />
+            </TouchableOpacity>
+            <TouchableOpacity 
+              onPress={() => navigation.navigate('Déconnexion')}
+              style={styles.logoutButton}
+            >
+              <Icon name="logout" size={24} color="#414d63" />
+            </TouchableOpacity>
+          </View>
         ),
       })}
     >
-      {/* Vos écrans Tab.Screen restent inchangés */}
       <Tab.Screen
         name="Accueil"
         component={Accueil}
         options={{
-          tabBarIcon: ({ color }) => <Icon name="home" color={color} size={26} />,
+          headerTitle: '',
+          tabBarLabel: "Accueil",
+          tabBarIcon: ({ color }) => (
+            <Icon name="home" color={color} size={26} />
+          ),
         }}
       />
 
@@ -52,48 +64,52 @@ export default function BottomTabs() {
         name="Annonces"
         component={Annonces}
         options={{
+          headerTitle: '',
           tabBarIcon: ({ color }) => <Icon name="list-alt" color={color} size={26} />,
         }}
       />
 
       <Tab.Screen
-  name="Publier"
-  component={EditionAnnonce}
-  options={({ navigation, route }) => ({
-    tabBarLabel: '',
-    tabBarButton: (props) => {
-      const isFocused = navigation.isFocused();
-      return (
-        <TouchableOpacity
-          {...props}
-          style={styles.tabBarButtonContainer}
-          onPress={() => navigation.navigate('Publier')}
-        >
-          <View style={[
-            styles.mainActionButton,
-            isFocused && styles.mainActionButtonActive
-          ]}>
-            <Icon name="add" size={30} color="#fff" />
-          </View>
-        </TouchableOpacity>
-      )
-    },
-  })}
-/>
+        name="Publier"
+        component={EditionAnnonce}
+        options={({ navigation, route }) => ({
+          headerTitle: '',
+          tabBarLabel: '',
+          tabBarButton: (props) => {
+            const isFocused = navigation.isFocused();
+            return (
+              <TouchableOpacity
+                {...props}
+                style={styles.tabBarButtonContainer}
+                onPress={() => navigation.navigate('Publier')}
+              >
+                <View style={[
+                  styles.mainActionButton,
+                  isFocused && styles.mainActionButtonActive
+                ]}>
+                  <Icon name="add" size={30} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            )
+          },
+        })}
+      />
 
       <Tab.Screen
-        name="Sécurité"
-        component={SuiviFamille}
+        name="Articles"
+        component={MonCatalogueArticle}
         options={{
+          headerTitle: '',
           tabBarIcon: ({ color }) => <Icon name="collections" color={color} size={26} />,
         }}
       />
 
       <Tab.Screen
-        name="Services"
-        component={MenuPrincipal}
+        name="Argent"
+        component={Caisses}
         options={{
-          tabBarIcon: ({ color }) => <Icon name="apps" color={color} size={26} />,
+          headerTitle: '',
+          tabBarIcon: ({ color }) => <Icon name="account-balance" color={color} size={26} />,
         }}
       />
     </Tab.Navigator>
@@ -124,6 +140,10 @@ const styles = StyleSheet.create({
     marginRight: 16,
     padding: 8,
   },
+  logoutButton2: {
+    marginRight: 5,
+    padding: 8,
+  },
   avatarImg: {
     width: 30,
     height: 30,
@@ -143,7 +163,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
-    //elevation: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,

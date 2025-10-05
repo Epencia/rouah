@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback, useRef,useContext } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useContext } from 'react';
 import {
-  FlatList,
   View,
   Text,
   Image,
+  FlatList,
   TouchableOpacity,
   Animated,
   StyleSheet,
@@ -12,8 +12,9 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
+import { Video } from 'expo-av';
 import Swiper from 'react-native-swiper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { GlobalContext } from '../global/GlobalState';
 
 const { width } = Dimensions.get('window');
@@ -39,7 +40,7 @@ function SkeletonCard() {
 }
 
 // ---------------- AnnonceItem ----------------
-function AnnonceItem({ item,navigation }) {
+function AnnonceItem({ item, navigation }) {
   const imageOpacity = useRef(new Animated.Value(0)).current;
   const onLoad = () => {
     Animated.timing(imageOpacity, {
@@ -49,67 +50,83 @@ function AnnonceItem({ item,navigation }) {
     }).start();
   };
 
-  const images = [
-    item.photo,
-    ...(item.albums && Array.isArray(item.albums) ? item.albums : []),
-  ].filter(Boolean);
+  // Construire tableau médias (images + vidéos)
+  const medias = [];
+
+  if (item.photo) {
+    medias.push({ uri: item.photo, type: item.type_annonce });
+  }
+
+  if (item.albums && Array.isArray(item.albums)) {
+    item.albums.forEach((a) => medias.push(a));
+  }
 
   return (
-     <TouchableOpacity
+    <TouchableOpacity
       activeOpacity={0.8}
       onPress={() => navigation.navigate("Details d'annonce", { code: item.code })}
     >
-    <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image
-          source={item.user_photo ? { uri: item.user_photo } : require('../assets/logo.png')}
-          style={styles.userPhoto}
-        />
-        <View>
-          <Text style={styles.userName}>{item.nom_prenom || 'Utilisateur'}</Text>
-          <Text style={styles.date}>{item.date} {item.heure}</Text>
-        </View>
-      </View>
-
-      {/* Contenu */}
-      <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
-        {item.titre ? <Text style={styles.titre}>{item.titre}</Text> : null}
-        {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
-
-        {images.length > 0 && (
-          <View style={{ height: CARD_HEIGHT }}>
-            <Swiper
-              autoplay={false}
-              showsPagination={true}
-              dotStyle={{ width: 8, height: 8 }}
-              activeDotStyle={{ width: 8, height: 8 }}
-            >
-              {images.map((img, index) => (
-                <Animated.Image
-                  key={index}
-                  source={{ uri: img }}
-                  style={[styles.image, { opacity: imageOpacity }]}
-                  resizeMode="cover"
-                  onLoad={onLoad}
-                />
-              ))}
-            </Swiper>
+      <View style={styles.card}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Image
+            source={item.user_photo ? { uri: item.user_photo } : require('../assets/logo.png')}
+            style={styles.userPhoto}
+          />
+          <View>
+            <Text style={styles.userName}>{item.nom_prenom || 'Utilisateur'}</Text>
+            <Text style={styles.date}>{item.date} {item.heure}</Text>
           </View>
-        )}
+        </View>
 
-        <View style={styles.footer}>
-          {item.categorie ? <Text style={styles.categorie}>{item.categorie}</Text> : null}
-          {item.vues ? <Text style={styles.prix}>{item.vues} vues</Text> : null}
+        {/* Contenu */}
+        <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
+          {item.titre ? <Text style={styles.titre}>{item.titre}</Text> : null}
+          {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
+
+          {medias.length > 0 && (
+            <View style={{ height: CARD_HEIGHT }}>
+              <Swiper autoplay={false} showsPagination dotStyle={{ width: 8, height: 8 }} activeDotStyle={{ width: 8, height: 8 }}>
+                {medias.map((m, index) => {
+                  if (m.type?.startsWith('video')) {
+                    return (
+                      <Video
+                        key={index}
+                        source={{ uri: m.uri }}
+                        style={styles.image}
+                        resizeMode="cover"
+                        useNativeControls
+                        isLooping
+                      />
+                    );
+                  } else {
+                    return (
+                      <Animated.Image
+                        key={index}
+                        source={{ uri: m.uri }}
+                        style={[styles.image, { opacity: imageOpacity }]}
+                        resizeMode="cover"
+                        onLoad={onLoad}
+                      />
+                    );
+                  }
+                })}
+              </Swiper>
+            </View>
+          )}
+
+          <View style={styles.footer}>
+            {item.categorie ? <Text style={styles.categorie}>{item.categorie}</Text> : null}
+            {item.vues ? <Text style={styles.prix}>{item.vues} vues</Text> : null}
+          </View>
         </View>
       </View>
-    </View>
     </TouchableOpacity>
   );
 }
 
 // ---------------- Feed Component ----------------
-export default function Annonces({ navigation }) {
+export default function AvisRecherche({ navigation }) {
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -130,7 +147,7 @@ export default function Annonces({ navigation }) {
     if (currentPage === 1) setLoading(true);
     else setLoadingMore(true);
 
-    fetch(`https://rouah.net/annonces.php?page=${currentPage}&limit=${limit}`)
+    fetch(`https://rouah.net/api/avis-recherche.php?page=${currentPage}&limit=${limit}`)
       .then(res => res.json())
       .then(json => {
         if (json.success) {
@@ -162,11 +179,6 @@ export default function Annonces({ navigation }) {
     loadData(true);
   };
 
-  const handleRefresh = () => {
-    setError('');
-    onRefresh();
-  };
-
   const handleSearch = (text) => {
     setSearchText(text);
     if (!text.trim()) {
@@ -191,7 +203,7 @@ export default function Annonces({ navigation }) {
       <View style={styles.errorContainer}>
         <MaterialCommunityIcons color="#fa4447" name="access-point-off" size={150} />
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
+        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
           <Text style={styles.retryButtonText}>Réessayer</Text>
         </TouchableOpacity>
       </View>
@@ -211,12 +223,15 @@ export default function Annonces({ navigation }) {
 
   return (
     <View style={{ flex: 1 }}>
+      <View style={styles.searchBar}>
+          <Feather name="search" size={24} color="gray" style={styles.searchIcon} />
       <TextInput
-        style={styles.searchInput}
+        style={styles.input}
         placeholder="Rechercher une annonce..."
         value={searchText}
         onChangeText={handleSearch}
       />
+      </View>
 
       <FlatList
         data={filteredData}
@@ -243,84 +258,24 @@ export default function Annonces({ navigation }) {
 
 // ---------------- Styles ----------------
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#fff',
-    marginVertical: 8,
-    marginHorizontal: 10,
-    borderRadius: 8,
-    overflow: 'hidden',
-    elevation: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-  },
-  userPhoto: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: '#ccc',
-  },
+  card: { backgroundColor: '#fff', marginVertical: 8, marginHorizontal: 10, borderRadius: 8, overflow: 'hidden', elevation: 2 },
+  header: { flexDirection: 'row', alignItems: 'center', padding: 10 },
+  userPhoto: { width: 40, height: 40, borderRadius: 20, marginRight: 10, backgroundColor: '#ccc' },
   userName: { fontWeight: '700', fontSize: 14 },
   date: { fontSize: 12, color: '#888' },
   titre: { fontSize: 16, fontWeight: '600', marginBottom: 5 },
   description: { fontSize: 14, marginBottom: 10, color: '#555' },
   image: { width: '100%', height: CARD_HEIGHT, backgroundColor: '#eee', borderRadius: 8 },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 5,
-  },
+  footer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 },
   categorie: { fontSize: 12, color: '#888' },
   prix: { fontSize: 12, fontWeight: '700' },
-  searchInput: {
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 8,
-    margin: 10,
-    paddingHorizontal: 10,
-    backgroundColor: '#fff',
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#fa4447',
-    textAlign: 'center',
-    marginVertical: 20,
-  },
-  retryButton: {
-    backgroundColor: '#fa4447',
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-   floatingButtonRight: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#fa4447',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-  },
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 6, margin: 10, paddingHorizontal: 10, elevation: 5 },
+  searchIcon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 16, color: '#333', paddingVertical: 10 },
+  searchInput: { height: 40, borderColor: '#ccc', borderWidth: 1, borderRadius: 8, margin: 10, paddingHorizontal: 10, backgroundColor: '#fff' },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  errorText: { fontSize: 16, color: '#fa4447', textAlign: 'center', marginVertical: 20 },
+  retryButton: { backgroundColor: '#fa4447', paddingVertical: 10, paddingHorizontal: 30, borderRadius: 8 },
+  retryButtonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  floatingButtonRight: { position: 'absolute', bottom: 30, right: 20, backgroundColor: '#fa4447', width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', elevation: 5 },
 });

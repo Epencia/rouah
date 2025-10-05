@@ -7,7 +7,6 @@ import {
   Image,
   StyleSheet,
   Alert,
-  Linking,
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
@@ -16,8 +15,11 @@ import {
   Platform
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export default function Inscription({navigation}) {
+export default function Inscription({ navigation }) {
   const [NomPrenom, setNomPrenom] = useState('');
   const [telephone, setTelephone] = useState('');
   const [username, setUsername] = useState('');
@@ -26,7 +28,54 @@ export default function Inscription({navigation}) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
-  const ValidationInscription = () => {
+  const registerForPushNotificationsAsync = async () => {
+    try {
+      console.log('Vérification si l\'appareil est physique...');
+      if (!Device.isDevice) {
+        console.log('Échec : appareil non physique (émulateur détecté)');
+        Alert.alert('Avertissement', 'Les notifications push ne sont pas disponibles sur un émulateur. Veuillez tester sur un appareil physique.');
+        return null;
+      }
+
+      console.log('Vérification des permissions de notification...');
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      console.log('Statut actuel des permissions :', existingStatus);
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== 'granted') {
+        console.log('Demande de permissions de notification...');
+        const { status } = await Notifications.requestPermissionsAsync({
+          ios: {
+            allowAlert: true,
+            allowBadge: true,
+            allowSound: true,
+          },
+        });
+        finalStatus = status;
+        console.log('Nouveau statut des permissions :', finalStatus);
+      }
+
+      if (finalStatus !== 'granted') {
+        console.log('Échec : permissions de notification refusées');
+        Alert.alert('Avertissement', 'Les notifications push sont désactivées. Activez-les dans les paramètres de votre appareil pour recevoir des notifications.');
+        return null;
+      }
+
+      console.log('Récupération du token push Expo...');
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '8b74f350-58f4-4c6c-b308-738040a6846d', // Remplace par ton projectId depuis app.json
+      });
+      const token = tokenData.data;
+      console.log('Token de notification généré :', token);
+      return token;
+    } catch (error) {
+      console.error('Erreur lors de la récupération du token :', error);
+      Alert.alert('Erreur', `Impossible de récupérer le token de notification : ${error.message}`);
+      return null;
+    }
+  };
+
+  const ValidationInscription = async () => {
     // Validation des champs vides
     if (!username || !telephone || !password || !NomPrenom) {
       setErrors({
@@ -67,36 +116,68 @@ export default function Inscription({navigation}) {
 
     setIsSubmitting(true);
 
-    fetch('https://rouah.net/api/inscription.php', {
-      method: 'post',
-      headers: {
-        'Accept': 'application/json',
-        'Content-type': 'application/json'
-      },
-      body: JSON.stringify({
-        telephone: telephone,
-        nom_prenom: NomPrenom,
-        login: username,
-        mdp: password,
-      })
-    })
-      .then((response) => response.json())
-      .then((responseJson) => {
-        Alert.alert("Message", responseJson);
-        if (responseJson.includes('succès')) {
-          setUsername('');
-          setPassword('');
-          setTelephone('');
-          setNomPrenom('');
-          setErrors({});
-        }
-      })
-      .catch((error) => {
-        Alert.alert("Erreur", error.message);
-      })
-      .finally(() => {
-        setIsSubmitting(false);
+    try {
+      // Récupérer le token de notification
+      console.log('Tentative de récupération du push token...');
+      const push_token = await registerForPushNotificationsAsync();
+      console.log('Push token obtenu :', push_token || 'null');
+
+      // Appel API pour l'inscription et enregistrement du token
+      console.log('Envoi des données d\'inscription :', { telephone, nom_prenom: NomPrenom, login: username, mdp: password, push_token });
+      const response = await fetch('https://rouah.net/api/inscription.php', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          telephone: telephone,
+          nom_prenom: NomPrenom,
+          login: username,
+          mdp: password,
+          push_token: push_token || '' // Envoyer une chaîne vide si aucun token
+        })
       });
+
+      let responseJson;
+      try {
+        responseJson = await response.json();
+      } catch (jsonError) {
+        console.error('Erreur lors du parsing JSON de la réponse :', jsonError);
+        Alert.alert('Erreur', 'Réponse invalide du serveur. Veuillez réessayer.');
+        return;
+      }
+
+      console.log('Réponse de l\'API inscription :', responseJson);
+      Alert.alert('Message', responseJson.message || JSON.stringify(responseJson));
+
+      if (responseJson.success) {
+        // Stocker le matricule
+        const matricule = responseJson.matricule;
+        if (matricule) {
+          await AsyncStorage.setItem('matricule', matricule.toString());
+          console.log('Matricule enregistré dans AsyncStorage :', matricule);
+          Alert.alert('Succès', `Inscription réussie ! Votre matricule est : ${matricule}${push_token ? '' : ' (Aucun token de notification obtenu)'}`);
+        } else {
+          console.warn('Aucun matricule reçu dans la réponse');
+          Alert.alert('Avertissement', 'Inscription réussie, mais aucun identifiant utilisateur reçu.');
+        }
+
+        // Réinitialiser le formulaire
+        setUsername('');
+        setPassword('');
+        setTelephone('');
+        setNomPrenom('');
+        setErrors({});
+      } else {
+        Alert.alert('Erreur', responseJson.message || 'L\'inscription a échoué. Veuillez réessayer.');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'inscription :', error);
+      Alert.alert('Erreur', error.message || 'Une erreur est survenue lors de l\'inscription.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -147,7 +228,7 @@ export default function Inscription({navigation}) {
                 onChangeText={(text) => {
                   const numericText = text.replace(/[^0-9]/g, '').slice(0, 10);
                   setTelephone(numericText);
-                  setErrors({...errors, telephone: ''});
+                  setErrors({ ...errors, telephone: '' });
                 }}
                 keyboardType="phone-pad"
                 maxLength={10}
@@ -166,7 +247,7 @@ export default function Inscription({navigation}) {
                 value={username}
                 onChangeText={(text) => {
                   setUsername(text.replace(/\s/g, ''));
-                  setErrors({...errors, username: ''});
+                  setErrors({ ...errors, username: '' });
                 }}
                 autoCapitalize="none"
                 returnKeyType="next"
@@ -186,7 +267,7 @@ export default function Inscription({navigation}) {
                 onChangeText={(text) => {
                   const numericText = text.replace(/[^0-9]/g, '').slice(0, 6);
                   setPassword(numericText);
-                  setErrors({...errors, password: ''});
+                  setErrors({ ...errors, password: '' });
                 }}
                 keyboardType="numeric"
                 maxLength={6}

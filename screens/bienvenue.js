@@ -14,36 +14,125 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
-import * as Sensors from 'expo-sensors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import Modal from 'react-native-modal';
 import { GlobalContext } from '../global/GlobalState';
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
 
 export default function Bienvenue({ navigation }) {
-  const [address, setAddress] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [count, setCount] = useState(0);
-  const [location, setLocation] = useState(null);
-  const [isModalVisible, setModalVisible] = useState(false);
-  const [countdown, setCountdown] = useState(10);
-  const countdownRef = useRef(null);
+  const [countAvis, setCountAvis] = useState(0);
+  const [countArticle, setCountArticle] = useState(0);
+  const [countOutils, setCountOutils] = useState(0);
   const [user] = useContext(GlobalContext);
 
   const apps = [
-    { id: '1', name: 'Annonces', src:"Annonces", icon: '📢', color: '#1DB954', notifications: count > 0 ? count : '0' },
-    { id: '2', name: 'Zones dangereuses', src:"Zones dangereuses", icon: '⚠️', color: '#E1306C', notification: '' },
-    { id: '3', name: 'Publier une annonce', src:"Edition d'annonce", icon: '📱', color: '#25D366' },
-    { id: '4', name: 'Alerte SOS', src:"Alerte SOS", icon: '🆘', color: '#FF0000' },
-    { id: '5', name: 'Localisations', src:"Geolocalisation", icon: '🗺️', color: '#4285F4' },
+    { id: '1', name: 'Publicités', src:"Publicites", icon: '📢', color: '#1DB954', notifications: count > 0 ? count : '0' },
+    { id: '2', name: "Avis de recherche", src:"Avis de recherche", icon: '🔍', color: '#FF0000', notifications: countAvis > 0 ? countAvis : '0' },
+    { id: '3', name: 'Badge commercial', src:"Badge commercial", icon: '📱', color: '#25D366' },
+    { id: '4', name: 'Catalogues', src:"Articles", icon: '📚', color: '#4285F4',notifications: countArticle > 0 ? countArticle : '0' },
+    { id: '5', name: 'Outils', src:"Outils", icon: '🛠️', color: '#E1306C', notifications: countOutils > 0 ? countOutils : '0' },
+    
   ];
 
   const toggleTheme = () => {
     setIsDarkMode(!isDarkMode);
   };
+
+   // Fonction pour récupérer le token push
+const registerForPushNotificationsAsync = async () => {
+  try {
+    console.log('Vérification si l\'appareil est physique...');
+    if (!Device.isDevice) {
+      console.log('Échec : appareil non physique (émulateur détecté)');
+      Alert.alert('Avertissement', 'Les notifications push ne sont pas disponibles sur un émulateur. Veuillez tester sur un appareil physique.');
+      return null;
+    }
+
+    console.log('Vérification des permissions de notification...');
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    console.log('Statut actuel des permissions :', existingStatus);
+    let finalStatus = existingStatus;
+
+    if (existingStatus !== 'granted') {
+      console.log('Demande de permissions de notification...');
+      const { status } = await Notifications.requestPermissionsAsync({
+        ios: {
+          allowAlert: true,
+          allowBadge: true,
+          allowSound: true,
+        },
+      });
+      finalStatus = status;
+      console.log('Nouveau statut des permissions :', finalStatus);
+    }
+
+    if (finalStatus !== 'granted') {
+      console.log('Échec : permissions de notification refusées');
+      Alert.alert('Avertissement', 'Les notifications push sont désactivées. Activez-les dans les paramètres de votre appareil pour recevoir des notifications.');
+      return null;
+    }
+
+    console.log('Récupération du token push Expo...');
+    const tokenData = await Notifications.getExpoPushTokenAsync({
+      projectId: '8b74f350-58f4-4c6c-b308-738040a6846d', // Remplace par ton projectId depuis app.json
+    });
+    const token = tokenData.data;
+    console.log('Token de notification généré :', token);
+
+    // Récupérer utilisateur_id depuis AsyncStorage (peut être null)
+    let utilisateur_id = await AsyncStorage.getItem('userId');
+    
+    // Si utilisateur_id est null, utiliser une valeur par défaut
+    if (!utilisateur_id) {
+      utilisateur_id = 'anonymous'; // Valeur par défaut pour contourner la vérification de l'API
+      //console.log('Aucun utilisateur connecté, utilisation de utilisateur_id = anonymous');
+    }
+
+    // Appeler l'API save-token.php
+    //console.log('Envoi du token à l\'API save-token.php...');
+    const response = await fetch('https://rouah.net/api/save-token.php', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        utilisateur_id: utilisateur_id,
+        push_token: token,
+      }),
+    });
+
+    const result = await response.json();
+    //console.log('Réponse de l\'API save-token.php :', result);
+
+    if (result.success) {
+      // Stocker le token localement
+      await AsyncStorage.setItem('pushToken', token);
+      //console.log('Token stocké localement :', token);
+      //Alert.alert('Succès', result.message || 'Token de notification enregistré avec succès.');
+      return token;
+    } else {
+      //console.error('Erreur API :', result.error || 'Erreur inconnue');
+      // Gérer le cas où l'API rejette la requête (par exemple, utilisateur_id manquant)
+      if (result.error === 'utilisateur ou token manquant') {
+        console.log('Tentative d\'enregistrement sans utilisateur_id strict...');
+        // Vous pouvez choisir d'ignorer l'erreur ou de réessayer avec une autre logique
+        await AsyncStorage.setItem('pushToken', token); // Stocker localement malgré l'erreur
+       // Alert.alert('Information', 'Token stocké localement, mais non enregistré sur le serveur.');
+        return token;
+      }
+      //Alert.alert('Erreur', `Échec de l'enregistrement du token : ${result.error || 'Erreur inconnue'}`);
+      return null;
+    }
+  } catch (error) {
+   // console.error('Erreur lors de la récupération ou de l\'enregistrement du token :', error);
+    //Alert.alert('Erreur', `Impossible de gérer le token de notification : ${error.message}`);
+    return null;
+  }
+};
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -53,41 +142,19 @@ export default function Bienvenue({ navigation }) {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+  const initializeNotifications = async () => {
+    const token = await registerForPushNotificationsAsync();
+    if (token) {
+      //console.log('Token push initialisé :', token);
+    }
+  };
+  initializeNotifications();
+}, []);
+
   const time = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const date = currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
-  useEffect(() => {
-    (async () => {
-      try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          setError('Permission de localisation refusée');
-          setLoading(false);
-          return;
-        }
-
-        const currentLocation = await Location.getCurrentPositionAsync({});
-        setLocation(currentLocation);
-        
-        const addresses = await Location.reverseGeocodeAsync(currentLocation.coords);
-        
-        if (addresses.length > 0) {
-          const addr = addresses[0];
-          setAddress({
-            street: addr.street || 'Rue inconnue',
-            city: addr.city || addr.region || 'Ville inconnue',
-            country: addr.country || 'Pays inconnu',
-            fullAddress: `${addr.country || ''}, ${addr.city || addr.region || ''}, ${addr.street || ''}`
-          });
-        }
-      } catch (err) {
-        setError('En attente de la position...');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
 
   const colors = {
     dark: {
@@ -118,7 +185,7 @@ export default function Bienvenue({ navigation }) {
 
   useEffect(() => {
     const getNombreNotification = () => {
-      fetch(`https://rouah.net/api/nombre-annonce.php`, {
+      fetch(`https://rouah.net/api/nombre-publicite.php`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -131,7 +198,7 @@ export default function Bienvenue({ navigation }) {
           setCount(notificationCount);
         })
         .catch((error) => {
-          console.error('Erreur notification:', error);
+          //console.error('Erreur notification:', error);
         });
     };
 
@@ -140,99 +207,77 @@ export default function Bienvenue({ navigation }) {
   }, []);
 
   useEffect(() => {
-    let subscription;
-    
-    const checkAcceleration = async ({ x, y, z }) => {
-      const acceleration = Math.sqrt(x * x + y * y + z * z);
-      if (acceleration > 2.5) {
-        try {
-          const currentLoc = location || await Location.getCurrentPositionAsync({});
-          setLocation(currentLoc);
-          startCountdown();
-        } catch {
-          Alert.alert('Attention', 'Alerte SOS non disponible - GPS indisponible');
-        }
-      }
+    const getNombreAvisRecherche = () => {
+      fetch(`https://rouah.net/api/nombre-avis-recherche.php`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
+          setCountAvis(notificationCount);
+        })
+        .catch((error) => {
+          //console.error('Erreur notification:', error);
+        });
     };
 
-    Sensors.Accelerometer.setUpdateInterval(100);
-    subscription = Sensors.Accelerometer.addListener(checkAcceleration);
-    
-    return () => subscription?.remove();
-  }, [location]);
+    const intervalId = setInterval(getNombreAvisRecherche, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
-  const startCountdown = () => {
-    setModalVisible(true);
-    setCountdown(10);
-    countdownRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          clearInterval(countdownRef.current);
-          setModalVisible(false);
-          sendSOS(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  const cancelCountdown = () => {
-    clearInterval(countdownRef.current);
-    setModalVisible(false);
-    setCountdown(10);
-  };
-
-  const sendSOS = async (isAutomatic = false) => {
-    let currentLocation = location;
-    if (!currentLocation) {
-      try {
-        currentLocation = await Location.getCurrentPositionAsync({});
-        setLocation(currentLocation);
-      } catch (err) {
-       // Alert.alert('Erreur', 'Impossible d\'obtenir votre position. Veuillez vérifier votre connexion GPS.');
-        return;
-      }
-    }
-
-    const matricule = await AsyncStorage.getItem('matricule');
-    if (!matricule) {
-      Alert.alert('Erreur', 'Veuillez vous connecter.');
-      return;
-    }
-
-    const userId = await AsyncStorage.getItem('userId');
-    const pushToken = await AsyncStorage.getItem('pushToken');
-    
-    const sosData = {
-      userId,
-      latitude: currentLocation.coords.latitude,
-      longitude: currentLocation.coords.longitude,
-      matricule,
-      type: isAutomatic ? 'AUTO_SOS' : 'MANUAL_SOS',
-      timestamp: new Date().toISOString(),
+  // articles
+    useEffect(() => {
+    const getNombreArticle = () => {
+      fetch(`https://rouah.net/api/nombre-article.php`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
+          setCountArticle(notificationCount);
+        })
+        .catch((error) => {
+          //console.error('Erreur notification:', error);
+        });
     };
 
-    try {
-      let alerts = JSON.parse(await AsyncStorage.getItem('sos_alerts')) || [];
-      alerts.push(sosData);
-      await AsyncStorage.setItem('sos_alerts', JSON.stringify(alerts));
+    const intervalId = setInterval(getNombreArticle, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
-      const url = `https://rouah.net/api/position.php?latitude=${sosData.latitude}&longitude=${sosData.longitude}&matricule=${matricule}`;
-      const response = await fetch(url);
-      const json = await response.json();
-      
-      if (json.success) {
-        Vibration.vibrate([500, 500, 500]);
-        Alert.alert('Succès', 'Alerte envoyée à vos contacts et enregistrée.');
-      } else {
-        throw new Error(json.message || 'Erreur serveur');
-      }
-    } catch (error) {
-      //Alert.alert('Erreur', `Échec de l'envoi: ${error.message}`);
-      //console.error('Erreur SOS:', error);
-    }
-  };
+
+  // outils
+    useEffect(() => {
+    const getNombreOutils = () => {
+      fetch(`https://rouah.net/api/nombre-outils.php`, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      })
+        .then((response) => response.json())
+        .then((result) => {
+          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
+          setCountOutils(notificationCount);
+        })
+        .catch((error) => {
+          //console.error('Erreur notification:', error);
+        });
+    };
+
+    const intervalId = setInterval(getNombreOutils, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
+
 
   const currentColors = isDarkMode ? colors.dark : colors.light;
 
@@ -246,44 +291,30 @@ export default function Bienvenue({ navigation }) {
       <StatusBar backgroundColor="transparent" barStyle={currentColors.statusBar} />
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
 
-        <Modal isVisible={isModalVisible} backdropOpacity={0.7}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Envoi de l'alerte SOS</Text>
-            <Text style={styles.modalCountdown}>{countdown}</Text>
-            <Text style={styles.modalText}>L'alerte sera envoyée dans {countdown} secondes</Text>
-            <TouchableOpacity style={styles.cancelButton} onPress={cancelCountdown}>
-              <Text style={styles.cancelButtonText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-        </Modal>
         
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.topSection}>
-            {loading ? (
-              <ActivityIndicator size="small" color={currentColors.text} style={styles.loading} />
-            ) : error ? (
-              <Text style={[styles.errorText, { color: currentColors.error }]}>{error}</Text>
-            ) : (
-              <View style={[styles.addressContainer, { backgroundColor: currentColors.cardBg }]}>
-                <Text style={[styles.addressText, { color: currentColors.text }]} numberOfLines={1} ellipsizeMode="tail">
-                  {address?.fullAddress}
-                </Text>
-              </View>
-            )}
-          </View>
+
 
           <View style={styles.header}>
+            <View style={styles.headerButtons}>
+              <TouchableOpacity 
+                style={[styles.themeToggle2, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
+                onPress={() => navigation.navigate('Informations')}
+              >
+                <Text style={styles.themeToggleText}>ℹ️</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.themeToggle, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
+                onPress={toggleTheme}
+              >
+                <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={[styles.date, { color: currentColors.textSecondary }]}>{date}</Text>
             <Text style={[styles.time, { color: currentColors.text }]}>{time}</Text>
-            <TouchableOpacity 
-              style={[styles.themeToggle, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
-              onPress={toggleTheme}
-            >
-              <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
-            </TouchableOpacity>
             <Image
               source={require('../assets/logo-original.png')}
               style={styles.logo}
@@ -328,13 +359,13 @@ export default function Bienvenue({ navigation }) {
             ]}
             onPress={() => navigation.navigate(user?.matricule ? 'Connexion' : 'Connexion')}
           >
-            <Text style={[styles.authButtonText, { color: currentColors.text }]}>{user?.matricule ? 'Connexion' : 'Connexion'}</Text>
+            <Text style={[styles.authButtonText, { color: currentColors.text }]}>{user?.matricule ? 'Se connecter' : 'Se connecter'}</Text>
           </TouchableOpacity>
           <TouchableOpacity 
             style={[styles.authButton, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
             onPress={() => navigation.navigate('Inscription')}
           >
-            <Text style={[styles.authButtonText, { color: currentColors.text }]}>Inscription</Text>
+            <Text style={[styles.authButtonText, { color: currentColors.text }]}>Créer un compte</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -365,6 +396,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  themeToggle2: {
+    position: 'absolute',
+    top: 10,
+    left: 20,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   themeToggleDark: {
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
@@ -388,6 +430,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 15,
     marginBottom: 15,
+  },
+   headerButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
   date: {
     fontSize: 18,

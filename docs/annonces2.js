@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef,useContext } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   FlatList,
   View,
@@ -12,9 +12,7 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
-import Swiper from 'react-native-swiper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlobalContext } from '../global/GlobalState';
 
 const { width } = Dimensions.get('window');
 const CARD_HEIGHT = (width * 9) / 16;
@@ -39,8 +37,9 @@ function SkeletonCard() {
 }
 
 // ---------------- AnnonceItem ----------------
-function AnnonceItem({ item,navigation }) {
+function AnnonceItem({ item, navigation }) {
   const imageOpacity = useRef(new Animated.Value(0)).current;
+
   const onLoad = () => {
     Animated.timing(imageOpacity, {
       toValue: 1,
@@ -49,18 +48,9 @@ function AnnonceItem({ item,navigation }) {
     }).start();
   };
 
-  const images = [
-    item.photo,
-    ...(item.albums && Array.isArray(item.albums) ? item.albums : []),
-  ].filter(Boolean);
-
   return (
-     <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => navigation.navigate("Details d'annonce", { code: item.code })}
-    >
     <View style={styles.card}>
-      {/* Header */}
+      {/* Header: photo + nom + date */}
       <View style={styles.header}>
         <Image
           source={item.user_photo ? { uri: item.user_photo } : require('../assets/logo.png')}
@@ -77,39 +67,26 @@ function AnnonceItem({ item,navigation }) {
         {item.titre ? <Text style={styles.titre}>{item.titre}</Text> : null}
         {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
 
-        {images.length > 0 && (
-          <View style={{ height: CARD_HEIGHT }}>
-            <Swiper
-              autoplay={false}
-              showsPagination={true}
-              dotStyle={{ width: 8, height: 8 }}
-              activeDotStyle={{ width: 8, height: 8 }}
-            >
-              {images.map((img, index) => (
-                <Animated.Image
-                  key={index}
-                  source={{ uri: img }}
-                  style={[styles.image, { opacity: imageOpacity }]}
-                  resizeMode="cover"
-                  onLoad={onLoad}
-                />
-              ))}
-            </Swiper>
-          </View>
-        )}
+        {item.photo ? (
+          <Animated.Image
+            source={{ uri: item.photo }}
+            style={[styles.image, { opacity: imageOpacity }]}
+            resizeMode="cover"
+            onLoad={onLoad}
+          />
+        ) : null}
 
         <View style={styles.footer}>
           {item.categorie ? <Text style={styles.categorie}>{item.categorie}</Text> : null}
-          {item.vues ? <Text style={styles.prix}>{item.vues} vues</Text> : null}
+          {item.prix ? <Text style={styles.prix}>{item.vues} vues</Text> : null}
         </View>
       </View>
     </View>
-    </TouchableOpacity>
   );
 }
 
 // ---------------- Feed Component ----------------
-export default function Annonces({ navigation }) {
+export default function Feed({ navigation }) {
   const [data, setData] = useState([]);
   const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -119,7 +96,6 @@ export default function Annonces({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [error, setError] = useState('');
-  const [user] = useContext(GlobalContext);
 
   const limit = 2;
 
@@ -186,6 +162,7 @@ export default function Annonces({ navigation }) {
     return <ActivityIndicator style={{ marginVertical: 20 }} size="large" color="#fa4447" />;
   };
 
+  // Affichage erreur
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -211,6 +188,7 @@ export default function Annonces({ navigation }) {
 
   return (
     <View style={{ flex: 1 }}>
+      {/* Barre de recherche */}
       <TextInput
         style={styles.searchInput}
         placeholder="Rechercher une annonce..."
@@ -228,15 +206,6 @@ export default function Annonces({ navigation }) {
         ListFooterComponent={renderFooter}
         contentContainerStyle={{ paddingBottom: 20 }}
       />
-
-      {user?.matricule && (
-        <TouchableOpacity
-          style={styles.floatingButtonRight}
-          onPress={() => navigation.navigate('Mes annonces')}
-        >
-          <Feather name="copy" size={24} color="white" />
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -306,21 +275,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
-  },
-   floatingButtonRight: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#fa4447',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
   },
 });

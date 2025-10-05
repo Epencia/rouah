@@ -18,22 +18,22 @@ import NotificationManager from '../navigation/NotificationManager';
 import { navigationRef } from '../navigation/NotificationManager';
 import AnnonceDetails from '../screens/details-annonce';
 import EditionAnnonce from '../screens/edition-annonce';
-import SignalAlerte from '../screens/alerte-signal';
-import EditionAlerte from '../screens/edition-alerte';
 import ListeContact from '../screens/liste-contact';
-import Geolocalisation from '../screens/geolocalisation';
-import AlerteSOS from '../screens/alerte-sos';
-import ZoneDangereuse from '../screens/zone-dangereuse';
-import DetecteurVitesse from '../screens/detecteur-vitesse';
-import DetecteurParanormal from '../screens/detecteur-paranormal';
-import DetecteurMagnetique from '../screens/detecteur-magnetique';
-import SuiviFamille from '../screens/suivi-famille';
-import BackgroundManager from '../navigation/BackGroundManager';
 import PaiementInitial from '../screens/paiement-initial';
-import CodeSecurite from '../screens/code-securite';
-import EditionFamille from '../screens/edition-famille';
-import EditionZone from '../screens/edition-zone';
-import EmergencyDetectionScreen from '../navigation/EmergencyDetectionScreen';
+import EditionBoutique from '../screens/edition-boutique';
+import ZoneBoutique from '../screens/zone-boutique';
+import BadgeCommercial from '../screens/badge-commercial';
+import Categories from '../screens/liste-categorie';
+import Partenaires from '../screens/liste-partenaire';
+import CatalogueArticle from '../screens/catalogue-article';
+import Informations from '../screens/informations';
+import AvisRecherche from '../screens/avis-recherche';
+import MonCatalogueArticle from '../screens/edition-article';
+import Outils from '../screens/outils';
+import CodeMarchand from '../screens/code-marchand';
+import Publicites from '../screens/publicites';
+import Caisses from '../screens/caisses';
+
 
 
 
@@ -57,29 +57,25 @@ const Routes = () => {
           <Stack.Screen name='Login user' component={LoginUser} options={{headerShown: true}}/>
           <Stack.Screen name='Login pass' component={LoginPass} options={{headerShown: true}}/>
           <Stack.Screen name="Edition d'annonce" component={EditionAnnonce} options={{headerShown: true}}/>
-          <Stack.Screen name="Edition de famille" component={EditionFamille} options={{headerShown: true}}/>
-          <Stack.Screen name="Liste des annonces" component={ListeAnnonce} options={{headerShown: true}}/>
+          <Stack.Screen name="Avis de recherche" component={AvisRecherche} options={{headerShown: true}}/>
+          <Stack.Screen name="Publicites" component={Publicites} options={{headerShown: true}}/>
+          <Stack.Screen name="Mes annonces" component={ListeAnnonce} options={{headerShown: true}}/>
           <Stack.Screen name="Annonces" component={Annonces} options={{headerShown: true}}/>
           <Stack.Screen name="Details d'annonce" component={AnnonceDetails} options={{headerShown: true}}/>
-          <Stack.Screen name="Signal d'alerte" component={SignalAlerte} />
-          <Stack.Screen name='Zones dangereuses' component={ZoneDangereuse} options={{headerShown: true}}/>
-          <Stack.Screen name="Edition d'alerte" component={EditionAlerte} options={{headerShown: true}}/>
-          <Stack.Screen name="Edition de zone" component={EditionZone} options={{headerShown: true}}/>
-          <Stack.Screen name='Alerte SOS' component={AlerteSOS} options={{headerShown: true}}/>
-          <Stack.Screen name='Geolocalisation' component={Geolocalisation} options={{ headerShown: true }}/>
+          <Stack.Screen name="Edition de zone" component={EditionBoutique} options={{headerShown: true}}/>
+          <Stack.Screen name='Zones marchandes' component={ZoneBoutique} options={{ headerShown: true }}/>
           <Stack.Screen name='Contacts' component={ListeContact} options={{headerShown: true}}/>
-          <Stack.Screen name='Detecteur magnetique' component={DetecteurMagnetique} options={{headerShown: true}}/>
-          <Stack.Screen name='Detecteur paranormal' component={DetecteurParanormal} options={{headerShown: true}}/>
-          <Stack.Screen name='Detecteur de vitesse' component={DetecteurVitesse} options={{headerShown: true}}/>
-          <Stack.Screen name='Suivi' component={SuiviFamille} options={{headerShown: true}}/>
-          <Stack.Screen name='Localiser un membre' component={Geolocalisation} options={{headerShown: true}}/>
           <Stack.Screen name='Paiement UVE' component={PaiementInitial} options={{headerShown: true}}/>
-          <Stack.Screen name='BackgroundManager' component={BackgroundManager} options={{headerShown: true}}/>
-          <Stack.Screen name='Code de securite' component={CodeSecurite} options={{headerShown: true}}/>
-          <Stack.Screen name='Déconnexion' component={Deconnexion} options={{headerShown: true}}/>
-          <Stack.Screen name='EmergencyService' component={EmergencyDetectionScreen} options={{headerShown: true, title: 'Protection SOS'}}
-        />
-          
+          <Stack.Screen name='Code marchand' component={CodeMarchand} options={{headerShown: true}}/>
+          <Stack.Screen name="Badge commercial" component={BadgeCommercial} options={{headerShown: true}}/>
+          <Stack.Screen name="Categories" component={Categories} options={{headerShown: true}}/>
+          <Stack.Screen name="Partenaires" component={Partenaires} options={{headerShown: true}}/>
+          <Stack.Screen name="Articles" component={CatalogueArticle} options={{headerShown: true}}/>
+          <Stack.Screen name="Caisses" component={Caisses} options={{headerShown: true}}/>
+          <Stack.Screen name="Mes articles" component={MonCatalogueArticle} options={{headerShown: true}}/>
+          <Stack.Screen name="Informations" component={Informations} options={{headerShown: true}}/>
+          <Stack.Screen name="Outils" component={Outils} options={{headerShown: true}}/>
+          <Stack.Screen name='Déconnexion' component={Deconnexion} options={{headerShown: true}}/>          
 
       </Stack.Navigator>
     </NavigationContainer>
