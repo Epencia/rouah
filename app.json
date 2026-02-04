@@ -4,7 +4,7 @@
     "slug": "rouah",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/adaptive-icon.png",
+    "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "rouah",
@@ -13,7 +13,7 @@
       "assets/**/*"
     ],
     "splash": {
-      "image": "./assets/adaptive-icon.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -39,13 +39,12 @@
           }
         }
       },
-      "bundleIdentifier": "com.mandigoentreprise.rouah",
-      "usesCleartextTraffic": true
+      "bundleIdentifier": "com.mandigoentreprise.rouah"
     },
     "android": {
-      "icon": "./assets/logo-icon.png",
+      "icon": "./assets/icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/logo-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "intentFilters": [
@@ -84,9 +83,7 @@
         "ACCESS_NETWORK_STATE",
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE"
-      ],
-      "usesCleartextTraffic": true,
-      "networkSecurityConfig": "@xml/network_security_config"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"

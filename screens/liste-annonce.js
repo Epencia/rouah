@@ -12,7 +12,6 @@ import {
   ActivityIndicator,
   TextInput,
 } from 'react-native';
-import { Video } from 'expo-av';
 import Swiper from 'react-native-swiper';
 import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import { GlobalContext } from '../global/GlobalState';
@@ -50,16 +49,44 @@ function AnnonceItem({ item, navigation }) {
     }).start();
   };
 
-  // Construire tableau médias (images + vidéos)
+  // Construire tableau médias (images seulement)
   const medias = [];
 
-  if (item.photo) {
-    medias.push({ uri: item.photo, type: item.type_annonce });
+  if (item.photo && typeof item.photo === 'string') {
+    // Vérifier si c'est une image (pas une vidéo)
+    const isImage = !item.photo.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i) && 
+                   !item.photo.includes('video') &&
+                   (!item.type_annonce || item.type_annonce.startsWith('image'));
+    
+    if (isImage) {
+      medias.push({ uri: item.photo, type: 'image/*' });
+    }
   }
 
   if (item.albums && Array.isArray(item.albums)) {
-    item.albums.forEach((a) => medias.push(a));
+    item.albums.forEach((a) => {
+      // Vérifier si c'est une image et non une vidéo
+      let isImage = true;
+      
+      if (typeof a === 'string') {
+        isImage = !a.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i) && !a.includes('video');
+      } else if (a && typeof a === 'object') {
+        // Vérifier le type
+        if (a.type) {
+          isImage = a.type.startsWith('image');
+        } else if (a.uri) {
+          isImage = !a.uri.match(/\.(mp4|mov|avi|wmv|flv|mkv|webm)$/i) && !a.uri.includes('video');
+        }
+      }
+      
+      if (isImage && a) {
+        medias.push(typeof a === 'string' ? { uri: a, type: 'image/*' } : a);
+      }
+    });
   }
+
+  // Si pas d'images, utiliser une image par défaut
+  const displayMedias = medias.length > 0 ? medias : [{ uri: 'https://via.placeholder.com/400x225?text=No+Image', type: 'image/*' }];
 
   return (
     <TouchableOpacity
@@ -82,34 +109,30 @@ function AnnonceItem({ item, navigation }) {
         {/* Contenu */}
         <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
           {item.titre ? <Text style={styles.titre}>{item.titre}</Text> : null}
-          {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
+          {item.description ? <Text style={styles.description} ellipsizeMode="tail" numberOfLines={2}>{item.description}</Text> : null}
 
-          {medias.length > 0 && (
+          {displayMedias.length > 0 && (
             <View style={{ height: CARD_HEIGHT }}>
-              <Swiper autoplay={false} showsPagination dotStyle={{ width: 8, height: 8 }} activeDotStyle={{ width: 8, height: 8 }}>
-                {medias.map((m, index) => {
-                  if (m.type?.startsWith('video')) {
-                    return (
-                      <Video
-                        key={index}
-                        source={{ uri: m.uri }}
-                        style={styles.image}
-                        resizeMode="cover"
-                        useNativeControls
-                        isLooping
-                      />
-                    );
-                  } else {
-                    return (
-                      <Animated.Image
-                        key={index}
-                        source={{ uri: m.uri }}
-                        style={[styles.image, { opacity: imageOpacity }]}
-                        resizeMode="cover"
-                        onLoad={onLoad}
-                      />
-                    );
-                  }
+              <Swiper 
+                autoplay={true} 
+                autoplayTimeout={4} 
+                showsPagination 
+                dotStyle={{ width: 8, height: 8 }} 
+                activeDotStyle={{ width: 8, height: 8 }}
+              >
+                {displayMedias.map((m, index) => {
+                  const imageUri = m.uri || (typeof m === 'string' ? m : null);
+                  
+                  return (
+                    <Animated.Image
+                      key={index}
+                      source={{ uri: imageUri }}
+                      style={[styles.image, { opacity: imageOpacity }]}
+                      resizeMode="cover"
+                      onLoad={onLoad}
+                      onError={(e) => console.log('Erreur chargement image:', e.nativeEvent.error)}
+                    />
+                  );
                 })}
               </Swiper>
             </View>
@@ -147,7 +170,7 @@ export default function ListeAnnonce({ navigation }) {
     if (currentPage === 1) setLoading(true);
     else setLoadingMore(true);
 
-    fetch(`https://rouah.net/api/liste-annonce.php?matricule=${user.matricule}&page=${currentPage}&limit=${limit}`)
+        fetch(`https://rouah.net/api/liste-annonce.php?matricule=${user.matricule}&page=${currentPage}&limit=${limit}`)
       .then(res => res.json())
       .then(json => {
         if (json.success) {
@@ -224,14 +247,14 @@ export default function ListeAnnonce({ navigation }) {
   return (
     <View style={{ flex: 1 }}>
       <View style={styles.searchBar}>
-                <Feather name="search" size={24} color="gray" style={styles.searchIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Rechercher une annonce..."
-              value={searchText}
-              onChangeText={handleSearch}
-            />
-            </View>
+        <Feather name="search" size={24} color="gray" style={styles.searchIcon} />
+        <TextInput
+          style={styles.input}
+          placeholder="Rechercher une annonce..."
+          value={searchText}
+          onChangeText={handleSearch}
+        />
+      </View>
 
       <FlatList
         data={filteredData}
@@ -244,6 +267,7 @@ export default function ListeAnnonce({ navigation }) {
         contentContainerStyle={{ paddingBottom: 20 }}
       />
 
+     
     </View>
   );
 }

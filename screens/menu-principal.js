@@ -3,78 +3,92 @@ import { View, Text, FlatList, StyleSheet, Image, TouchableOpacity, TextInput } 
 import { MaterialCommunityIcons ,Feather} from '@expo/vector-icons';
 
 const data = [
-  {
+    {
     id: '1',
-    image: 'credit-card-outline',
-    titre: 'MON COMPTE',
-    libelle: "Suivre l'activité de son compte",
-    src : 'Accueil'
+    image: 'wallet-outline', // RECHARGEMENT SOLDE
+    titre: "RECHARGEMENT SOLDE",
+    libelle: "Recharger votre solde",
+    src : 'Paiement UVE'
   },
   {
     id: '2',
-    image: 'account-outline',
+    image: 'account-outline', // MON PROFIL
     titre: 'MON PROFIL',
     libelle: 'Voir votre profil utilisateur',
     src : 'Profil'
   },
-     {
-    id: '7',
-    image: 'contacts-outline',
-    titre: "PUBLIER UNE ANNONCE",
-    libelle: "Publier une annonce",
-    src : "Edition d'annonce"
-  },
-    {
-    id: '8',
-    image: 'file-image-marker-outline',
+  {
+    id: '4',
+    image: 'file-document-outline', // MES ANNONCES
     titre: "MES ANNONCES",
     libelle: "Voir mes annonces",
     src : "Mes annonces"
   },
   {
-    id: '3',
-    image: 'map-outline',
-    titre: "ANNONCES",
-    libelle: "Voir toutes les annonces",
-    src : 'Annonces'
-  },
-    {
-    id: '17',
-    image: 'shield-outline',
-    titre: "AVIS DE RECHERCHE",
-    libelle: "voir tous les avis de recherche",
-    src : 'Avis de recherche'
-  },
-  {
-    id: '4',
-    image: 'shield-outline',
+    id: '7',
+    image: 'shopping-outline', // MES ARTICLES
     titre: "MES ARTICLES",
-    libelle: "voir mon catalogue d'articles",
+    libelle: "Voir mon catalogue d'articles",
     src : 'Mes articles'
   },
-   {
-    id: '5',
-    image: 'lock-outline',
+  {
+    id: '8',
+    image: 'key-outline', // CODE MARCHAND
     titre: "CODE MARCHAND",
     libelle: "Voir votre code unique",
     src : 'Code marchand'
   },
-    {
-    id: '6',
-    image: 'cash-100',
-    titre: "RECHARGEMENT SOLDE",
-    libelle: "Recharger votre solde",
-    src : 'Paiement UVE'
+  {
+    id: '9',
+    image: 'cash-multiple', // CAISSE & ARGENT
+    titre: "CAISSE & ARGENT",
+    libelle: "Gestion de la caisse",
+    src : 'Caisses'
   },
-
-   {
-    id: '16',
-    image: 'access-point-network',
-    titre: "TEST",
-    libelle: "Activer en arrière-plan la position",
+  {
+    id: '11',
+    image: 'folder-outline', // TEST
+    titre: "MES CONTACTS",
+    libelle: "Voir mon repertoire téléphonique",
     src : "Contacts"
   },
+   {
+    id: '12',
+    image: 'notebook-outline', // TEST
+    titre: "MES LICENCES",
+    libelle: "Voir mes abonnements",
+    src : "Licences"
+  },
+   {
+    id: '13',
+    image: 'access-point-network', // TEST
+    titre: "CATALOGUES",
+    libelle: "Voir les boutiques officiels",
+    src : "Chaines"
+  },
+   {
+    id: '14',
+    image: 'clipboard-list-outline', // TEST
+    titre: "COMMANDES CLIENTS",
+    libelle: "Voir les commandes des clients",
+    src : "Commandes clients"
+  },
+   {
+    id: '15',
+    image: 'package-variant-closed', // TEST
+    titre: "MES COMMANDES",
+    libelle: "Voir mes commandes",
+    src : "Mes commandes"
+  },
+   {
+    id: '16',
+    image: 'credit-card-outline', // TEST
+    titre: "MA CARTE",
+    libelle: "Voir ma carte",
+    src : "Cartes"
+  },
 ];
+
 
 export default function MenuPrincipal({navigation}) {
 
@@ -123,7 +137,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'white', // Fond blanc
     padding: 16,
-    //marginBottom:20
+    marginBottom:20
   },
   searchBar: {
     flexDirection: 'row',

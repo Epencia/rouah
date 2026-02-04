@@ -1,583 +1,692 @@
 import React, { useRef, useState, useEffect, useContext } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  TouchableOpacity, 
-  ActivityIndicator, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
   Dimensions,
-  ScrollView,
+  Animated,
   Alert,
   Image,
-  StatusBar,
-  Vibration
+  Platform,
+  StatusBar
 } from 'react-native';
+import Icon from 'react-native-vector-icons/FontAwesome5';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlobalContext } from '../global/GlobalState';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants'; // IMPORT MANQUANT
+import * as Application from 'expo-application'; // IMPORT MANQUANT
 
-export default function Bienvenue({ navigation }) {
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [isDarkMode, setIsDarkMode] = useState(true);
+const { width, height } = Dimensions.get('window');
+const isSmallScreen = width < 375;
+const isLargeScreen = width > 414;
+
+// Adaptatif : la taille du cercle varie selon l'écran
+const CIRCLE_DIAMETER = Math.min(
+  width * (isSmallScreen ? 0.85 : 0.92),
+  height * 0.55,
+  420
+);
+const RADIUS = CIRCLE_DIAMETER * (isSmallScreen ? 0.38 : 0.42);
+
+// Calcul des tailles de police adaptatives
+const scaleFont = (size) => {
+  const scaleFactor = isSmallScreen ? 0.9 : isLargeScreen ? 1.1 : 1;
+  return size * scaleFactor;
+};
+
+const partners = [
+  { name: 'Annonces', src: "Annonces", icon: 'bullhorn' },
+  { name: 'Catalogues', src: "Chaines", icon: 'book' },
+  { name: 'Certificats', src: "Diplomes", icon: 'graduation-cap' },
+  { name: 'Comptoir', src: "Comptoir", icon: 'comments' },
+  { name: 'Outils', src: "Outils", icon: 'tools' },
+  { name: 'Partenaires', src: "Partenaires", icon: 'handshake' },
+  { name: 'Galeries', src: "Galeries", icon: 'images', isCenter: true },
+];
+
+const Bienvenue = ({ navigation }) => {
   const [count, setCount] = useState(0);
   const [countAvis, setCountAvis] = useState(0);
   const [countArticle, setCountArticle] = useState(0);
   const [countOutils, setCountOutils] = useState(0);
-  const [user] = useContext(GlobalContext);
+  const [currentMessage, setCurrentMessage] = useState(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.5)).current;
+  const [versets, setVersets] = useState([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
+  const [pushToken, setPushToken] = useState(null);
 
-  const apps = [
-    { id: '1', name: 'Publicités', src:"Publicites", icon: '📢', color: '#1DB954', notifications: count > 0 ? count : '0' },
-    { id: '2', name: "Avis de recherche", src:"Avis de recherche", icon: '🔍', color: '#FF0000', notifications: countAvis > 0 ? countAvis : '0' },
-    { id: '3', name: 'Badge commercial', src:"Badge commercial", icon: '📱', color: '#25D366' },
-    { id: '4', name: 'Catalogues', src:"Articles", icon: '📚', color: '#4285F4',notifications: countArticle > 0 ? countArticle : '0' },
-    { id: '5', name: 'Outils', src:"Outils", icon: '🛠️', color: '#E1306C', notifications: countOutils > 0 ? countOutils : '0' },
-    
-  ];
-
-  const toggleTheme = () => {
-    setIsDarkMode(!isDarkMode);
-  };
-
-   // Fonction pour récupérer le token push
-const registerForPushNotificationsAsync = async () => {
-  try {
-    console.log('Vérification si l\'appareil est physique...');
-    if (!Device.isDevice) {
-      console.log('Échec : appareil non physique (émulateur détecté)');
-      Alert.alert('Avertissement', 'Les notifications push ne sont pas disponibles sur un émulateur. Veuillez tester sur un appareil physique.');
-      return null;
-    }
-
-    console.log('Vérification des permissions de notification...');
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    console.log('Statut actuel des permissions :', existingStatus);
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== 'granted') {
-      console.log('Demande de permissions de notification...');
-      const { status } = await Notifications.requestPermissionsAsync({
-        ios: {
-          allowAlert: true,
-          allowBadge: true,
-          allowSound: true,
-        },
+  // === NOTIFICATIONS PUSH ===
+  const registerForPushNotificationsAsync = async () => {
+    // Votre code original inchangé
+    try {
+      if (!Device.isDevice) {
+        Alert.alert('Avertissement', 'Les notifications push ne sont pas disponibles sur un émulateur.');
+        return null;
+      }
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      if (finalStatus !== 'granted') {
+        Alert.alert('Avertissement', 'Les notifications push sont désactivées.');
+        return null;
+      }
+      const tokenData = await Notifications.getExpoPushTokenAsync({
+        projectId: '8b74f350-58f4-4c6c-b308-738040a6846d',
       });
-      finalStatus = status;
-      console.log('Nouveau statut des permissions :', finalStatus);
-    }
+      const token = tokenData.data;
+      let utilisateur_id = await AsyncStorage.getItem('userId') || 'anonymous';
 
-    if (finalStatus !== 'granted') {
-      console.log('Échec : permissions de notification refusées');
-      Alert.alert('Avertissement', 'Les notifications push sont désactivées. Activez-les dans les paramètres de votre appareil pour recevoir des notifications.');
-      return null;
-    }
+      // Récupérer les informations du device
+      const deviceInfo = {
+        Proprietaire: Device.deviceName || 'Inconnu',
+        Annee: Device.deviceYearClass || 'Inconnu',
+        Marque: Device.brand || 'Inconnu',
+        Modele: Device.modelName|| Device.modelId  || 'Inconnu',
+        VersionOS: Device.osVersion || 'Inconnu',
+        Plateforme: Device.platformApiLevel || 'Inconnu',
+        buildVersion: Application.nativeBuildVersion || '1',
+        Design: Device.designName || 'Inconnu',
+        UID: (await Device.getDeviceTypeAsync()) || 'Inconnu',
+        Date: new Date().toISOString(),
+        Application: Constants.expoConfig?.name || 'Rouah',
+      };
 
-    console.log('Récupération du token push Expo...');
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: '8b74f350-58f4-4c6c-b308-738040a6846d', // Remplace par ton projectId depuis app.json
-    });
-    const token = tokenData.data;
-    console.log('Token de notification généré :', token);
-
-    // Récupérer utilisateur_id depuis AsyncStorage (peut être null)
-    let utilisateur_id = await AsyncStorage.getItem('userId');
-    
-    // Si utilisateur_id est null, utiliser une valeur par défaut
-    if (!utilisateur_id) {
-      utilisateur_id = 'anonymous'; // Valeur par défaut pour contourner la vérification de l'API
-      //console.log('Aucun utilisateur connecté, utilisation de utilisateur_id = anonymous');
-    }
-
-    // Appeler l'API save-token.php
-    //console.log('Envoi du token à l\'API save-token.php...');
-    const response = await fetch('https://rouah.net/api/save-token.php', {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+       // Préparer les données pour l'envoi
+      const postData = {
         utilisateur_id: utilisateur_id,
         push_token: token,
-      }),
-    });
+        device: JSON.stringify(deviceInfo)
+      };
 
-    const result = await response.json();
-    //console.log('Réponse de l\'API save-token.php :', result);
 
-    if (result.success) {
-      // Stocker le token localement
-      await AsyncStorage.setItem('pushToken', token);
-      //console.log('Token stocké localement :', token);
-      //Alert.alert('Succès', result.message || 'Token de notification enregistré avec succès.');
-      return token;
-    } else {
-      //console.error('Erreur API :', result.error || 'Erreur inconnue');
-      // Gérer le cas où l'API rejette la requête (par exemple, utilisateur_id manquant)
-      if (result.error === 'utilisateur ou token manquant') {
-        console.log('Tentative d\'enregistrement sans utilisateur_id strict...');
-        // Vous pouvez choisir d'ignorer l'erreur ou de réessayer avec une autre logique
-        await AsyncStorage.setItem('pushToken', token); // Stocker localement malgré l'erreur
-       // Alert.alert('Information', 'Token stocké localement, mais non enregistré sur le serveur.');
-        return token;
+      const response = await fetch('https://rouah.net/api/save-token.php', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(postData),      
+});
+      const result = await response.json();
+
+      console.log('Token envoyé au serveur:', result);
+
+      if (result.success || result.error === 'utilisateur ou token manquant') {
+        await AsyncStorage.setItem('pushToken', token);
+        setPushToken(token); // ← Stocker dans l'état
       }
-      //Alert.alert('Erreur', `Échec de l'enregistrement du token : ${result.error || 'Erreur inconnue'}`);
+      return token;
+    } catch (error) {
       return null;
     }
-  } catch (error) {
-   // console.error('Erreur lors de la récupération ou de l\'enregistrement du token :', error);
-    //Alert.alert('Erreur', `Impossible de gérer le token de notification : ${error.message}`);
-    return null;
-  }
-};
+  };
 
+  useEffect(() => { registerForPushNotificationsAsync(); }, []);
+
+  // === COMPTEURS EN TEMPS RÉEL ===
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
+    const fetchers = [
+      { setter: setCount, url: 'https://rouah.net/api/nombre-publicite.php' },
+      { setter: setCountAvis, url: 'https://rouah.net/api/nombre-avis-recherche.php' },
+      { setter: setCountArticle, url: 'https://rouah.net/api/nombre-article.php' },
+      { setter: setCountOutils, url: 'https://rouah.net/api/nombre-chaine.php' },
+    ];
 
-    return () => clearInterval(timer);
+    fetchers.forEach(({ setter, url }) => {
+      const fetchData = () => {
+        fetch(url, { method: 'POST' })
+          .then(r => r.json())
+          .then(res => setter(typeof res === 'number' ? res : res?.count || 0))
+          .catch(() => {});
+      };
+      fetchData();
+      const id = setInterval(fetchData, 8000);
+      return () => clearInterval(id);
+    });
+  }, []);
+
+  // === VERSETS BIBLIQUES ===
+  useEffect(() => {
+    const fetchVersets = async () => {
+      try {
+        const response = await fetch("https://rouah.net/api/versets.php");
+        const data = await response.json();
+        if (data.success && data.versets.length > 0) {
+          setVersets(data.versets);
+        }
+      } catch (e) {
+        console.log("Erreur de récupération des versets :", e);
+      }
+    };
+    fetchVersets();
   }, []);
 
   useEffect(() => {
-  const initializeNotifications = async () => {
-    const token = await registerForPushNotificationsAsync();
-    if (token) {
-      //console.log('Token push initialisé :', token);
+  if (versets.length === 0) return;
+
+  let isMounted = true;
+
+  const showNextVerse = (index = 0) => {
+    if (!isMounted) return;
+
+    setCurrentMessage(versets[index]);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
+      ]),
+      Animated.delay(60000),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+    ]).start(() => {
+      scaleAnim.setValue(0.5);
+      const nextIndex = (index + 1) % versets.length;
+      showNextVerse(nextIndex); // récursion contrôlée
+    });
+  };
+
+  showNextVerse(); // lancement initial
+
+  return () => { isMounted = false; };
+}, [versets]);
+
+// Ajoutez useEffect pour charger le token au démarrage
+useEffect(() => {
+  const loadToken = async () => {
+    try {
+      const savedToken = await AsyncStorage.getItem('pushToken');
+      if (savedToken) {
+        setPushToken(savedToken);
+      }
+    } catch (error) {
+      console.error('Erreur chargement token:', error);
     }
   };
-  initializeNotifications();
+  loadToken();
 }, []);
 
-  const time = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const date = currentTime.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
 
 
-  const colors = {
-    dark: {
-      gradient: ['#0f2027', '#203a43', '#2c5364'],
-      text: '#fff',
-      textSecondary: 'rgba(255, 255, 255, 0.8)',
-      textTertiary: 'rgba(255, 255, 255, 0.7)',
-      cardBg: 'rgba(255, 255, 255, 0.1)',
-      error: 'rgba(255, 100, 100, 0.9)',
-      buttonBorder: 'rgba(255, 255, 255, 0.3)',
-      loginButton: 'rgba(255, 255, 255, 0.2)',
-      signupButton: 'rgba(74, 144, 226, 0.6)',
-      statusBar: 'light',
-    },
-    light: {
-      gradient: ['#f5f7fa', '#e4e8f0', '#d8e1e8'],
-      text: '#333',
-      textSecondary: '#555',
-      textTertiary: '#666',
-      cardBg: 'rgba(255, 255, 255, 0.7)',
-      error: '#d32f2f',
-      buttonBorder: 'rgba(0, 0, 0, 0.1)',
-      loginButton: 'rgba(255, 255, 255, 0.8)',
-      signupButton: 'rgba(74, 144, 226, 0.8)',
-      statusBar: 'dark',
-    }
+  // Fonction pour gérer le layout du conteneur
+  const handleContainerLayout = (event) => {
+    const { width, height } = event.nativeEvent.layout;
+    setContainerDimensions({ width, height });
   };
 
-  useEffect(() => {
-    const getNombreNotification = () => {
-      fetch(`https://rouah.net/api/nombre-publicite.php`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      })
-        .then((response) => response.json())
-        .then((result) => {
-          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
-          setCount(notificationCount);
-        })
-        .catch((error) => {
-          //console.error('Erreur notification:', error);
-        });
-    };
-
-    const intervalId = setInterval(getNombreNotification, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  useEffect(() => {
-    const getNombreAvisRecherche = () => {
-      fetch(`https://rouah.net/api/nombre-avis-recherche.php`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      })
-        .then((response) => response.json())
-        .then((result) => {
-          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
-          setCountAvis(notificationCount);
-        })
-        .catch((error) => {
-          //console.error('Erreur notification:', error);
-        });
-    };
-
-    const intervalId = setInterval(getNombreAvisRecherche, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-  // articles
-    useEffect(() => {
-    const getNombreArticle = () => {
-      fetch(`https://rouah.net/api/nombre-article.php`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      })
-        .then((response) => response.json())
-        .then((result) => {
-          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
-          setCountArticle(notificationCount);
-        })
-        .catch((error) => {
-          //console.error('Erreur notification:', error);
-        });
-    };
-
-    const intervalId = setInterval(getNombreArticle, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-
-  // outils
-    useEffect(() => {
-    const getNombreOutils = () => {
-      fetch(`https://rouah.net/api/nombre-outils.php`, {
-        method: 'POST',
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      })
-        .then((response) => response.json())
-        .then((result) => {
-          const notificationCount = typeof result === 'number' ? result : result?.count || 0;
-          setCountOutils(notificationCount);
-        })
-        .catch((error) => {
-          //console.error('Erreur notification:', error);
-        });
-    };
-
-    const intervalId = setInterval(getNombreOutils, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
-
-
-  const currentColors = isDarkMode ? colors.dark : colors.light;
-
   return (
-    <LinearGradient
-      colors={currentColors.gradient}
-      style={styles.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <StatusBar backgroundColor="transparent" barStyle={currentColors.statusBar} />
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
+      <View style={styles.header}>
+        <Image 
+          source={require('../assets/logo-original.png')} 
+          style={[
+            styles.logo,
+            isSmallScreen && styles.logoSmall,
+            isLargeScreen && styles.logoLarge
+          ]} 
+          resizeMode="contain" 
+        />
+        <Text style={[
+          styles.title,
+          isSmallScreen && styles.titleSmall,
+          isLargeScreen && styles.titleLarge
+        ]}>
+          Rouah
+        </Text>
 
-        
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+        <Animated.View 
+          style={[
+            styles.messageContainer,
+            { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
+          ]}
         >
+          {currentMessage && (
+            <Text style={[
+              styles.subtitle,
+              isSmallScreen && styles.subtitleSmall,
+              isLargeScreen && styles.subtitleLarge
+            ]} numberOfLines={3}>
+              {currentMessage}
+            </Text>
+          )}
+        </Animated.View>
+      </View>
 
-
-          <View style={styles.header}>
-            <View style={styles.headerButtons}>
-              <TouchableOpacity 
-                style={[styles.themeToggle2, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
-                onPress={() => navigation.navigate('Informations')}
+      <View 
+        style={[styles.circleWrapper, { width: CIRCLE_DIAMETER, height: CIRCLE_DIAMETER }]}
+        onLayout={handleContainerLayout}
+      >
+        {partners.map((partner, index) => {
+          if (partner.isCenter) {
+            return (
+              <TouchableOpacity
+                key={index}
+                style={styles.centerPartner}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate(partner.src)}
               >
-                <Text style={styles.themeToggleText}>ℹ️</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.themeToggle, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
-                onPress={toggleTheme}
-              >
-                <Text style={styles.themeToggleText}>{isDarkMode ? '☀️' : '🌙'}</Text>
-              </TouchableOpacity>
-            </View>
-            <Text style={[styles.date, { color: currentColors.textSecondary }]}>{date}</Text>
-            <Text style={[styles.time, { color: currentColors.text }]}>{time}</Text>
-            <Image
-              source={require('../assets/logo-original.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-          </View>
-
-          <View style={styles.appList}>
-            {apps.map((app) => (
-              <TouchableOpacity 
-                key={app.id} 
-                style={[styles.appItem, { backgroundColor: currentColors.cardBg }]} 
-                onPress={() => navigation.navigate(app.src)}
-              >
-                <View style={[styles.appIcon, { backgroundColor: app.color }]}>
-                  <Text style={styles.iconText}>{app.icon}</Text>
-                  {app.notifications && (
-                    <View style={styles.notificationBadge}>
-                      <Text style={styles.notificationBadgeText}>{app.notifications}</Text>
-                    </View>
-                  )}
+                <View style={[
+                  styles.centerIcon,
+                  isSmallScreen && styles.centerIconSmall,
+                  isLargeScreen && styles.centerIconLarge
+                ]}>
+                  <Icon 
+                    name={partner.icon} 
+                    size={isSmallScreen ? 30 : isLargeScreen ? 38 : 34} 
+                    color="white" 
+                  />
                 </View>
-                <View style={styles.appTextContainer}>
-                  <Text style={[styles.appName, { color: currentColors.text }]}>{app.name}</Text>
-                  {app.notification && (
-                    <Text style={[styles.notification, { color: currentColors.textTertiary }]}>{app.notification}</Text>
-                  )}
-                </View>
+                <Text style={[
+                  styles.centerName,
+                  isSmallScreen && styles.centerNameSmall,
+                  isLargeScreen && styles.centerNameLarge
+                ]}>
+                  {partner.name}
+                </Text>
               </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+            );
+          }
 
-        <View style={styles.footer}>
-          <TouchableOpacity 
-            style={[
-              styles.authButton, 
-              { 
-                backgroundColor: currentColors.loginButton,
-                borderColor: currentColors.buttonBorder
-              }
-            ]}
-            onPress={() => navigation.navigate(user?.matricule ? 'Connexion' : 'Connexion')}
-          >
-            <Text style={[styles.authButtonText, { color: currentColors.text }]}>{user?.matricule ? 'Se connecter' : 'Se connecter'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.authButton, isDarkMode ? styles.themeToggleDark : styles.themeToggleLight]}
-            onPress={() => navigation.navigate('Inscription')}
-          >
-            <Text style={[styles.authButtonText, { color: currentColors.text }]}>Créer un compte</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    </LinearGradient>
+          const angle = index * 60 - 90;
+          const radians = (angle * Math.PI) / 180;
+          const x = RADIUS * Math.cos(radians);
+          const y = RADIUS * Math.sin(radians);
+
+          // === DÉTERMINATION DU BADGE ===
+          let badgeCount = 0;
+          if (partner.name === 'Annonces') badgeCount = count;
+
+          return (
+            <TouchableOpacity
+              key={index}
+              style={[
+                styles.outerPartner, 
+                { 
+                  transform: [{ translateX: x }, { translateY: y }],
+                  width: isSmallScreen ? 85 : isLargeScreen ? 110 : 100
+                }
+              ]}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate(partner.src)}
+            >
+              <View style={styles.outerIconContainer}>
+                <View style={[
+                  styles.outerIcon,
+                  isSmallScreen && styles.outerIconSmall,
+                  isLargeScreen && styles.outerIconLarge
+                ]}>
+                  <Icon 
+                    name={partner.icon} 
+                    size={isSmallScreen ? 22 : isLargeScreen ? 28 : 26} 
+                    color="#414d63" 
+                  />
+                </View>
+                {badgeCount > 0 && (
+                  <View style={[
+                    styles.badge,
+                    isSmallScreen && styles.badgeSmall,
+                    isLargeScreen && styles.badgeLarge
+                  ]}>
+                    <Text style={[
+                      styles.badgeText,
+                      isSmallScreen && styles.badgeTextSmall,
+                      isLargeScreen && styles.badgeTextLarge
+                    ]}>
+                      {badgeCount > 99 ? '99+' : badgeCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+              <Text style={[
+                styles.outerName,
+                isSmallScreen && styles.outerNameSmall,
+                isLargeScreen && styles.outerNameLarge
+              ]}>
+                {partner.name}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={[
+        styles.buttons,
+        isSmallScreen && styles.buttonsSmall,
+        isLargeScreen && styles.buttonsLarge
+      ]}>
+        <TouchableOpacity 
+          style={[
+            styles.btnLogin,
+            isSmallScreen && styles.btnLoginSmall,
+            isLargeScreen && styles.btnLoginLarge
+          ]} 
+          onPress={() => navigation.navigate('Connexion')}
+        >
+          <Text style={[
+            styles.btnLoginText,
+            isSmallScreen && styles.btnLoginTextSmall,
+            isLargeScreen && styles.btnLoginTextLarge
+          ]}>
+            Connexion
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[
+            styles.btnSignup,
+            isSmallScreen && styles.btnSignupSmall,
+            isLargeScreen && styles.btnSignupLarge
+          ]} 
+          onPress={() => navigation.navigate('Inscription')}
+        >
+          <Text style={[
+            styles.btnSignupText,
+            isSmallScreen && styles.btnSignupTextSmall,
+            isLargeScreen && styles.btnSignupTextLarge
+          ]}>
+            Inscription
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
   );
-}
-
-const { width, height } = Dimensions.get('window');
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    position: 'relative',
-  },
-  gradient: {
-    flex: 1,
-    width: width,
-    height: height,
-  },
-  themeToggle: {
-    position: 'absolute',
-    top: 10,
-    right: 20,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
+    backgroundColor: '#fff',
     alignItems: 'center',
-  },
-  themeToggle2: {
-    position: 'absolute',
-    top: 10,
-    left: 20,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  themeToggleDark: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  themeToggleLight: {
-    backgroundColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  themeToggleText: {
-    fontSize: 20,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 40,
-  },
-  topSection: {
-    width: '100%',
-    marginTop: 5,
-  },
-  header: {
-    alignItems: 'center',
-    marginTop: 15,
-    marginBottom: 15,
-  },
-   headerButtons: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
+    paddingVertical: Platform.select({
+      ios: 30,
+      android: 20,
+      default: 25
+    }),
+    paddingHorizontal: 16,
+  },
+  header: { 
+    alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  date: {
-    fontSize: 18,
-    marginBottom: 5,
-  },
-  time: {
-    fontSize: 40,
-    fontWeight: '200',
-    marginBottom: 10,
-  },
-  addressContainer: {
-    width: '100%',
-    paddingHorizontal: 15,
-    borderRadius: 15,
-    paddingVertical: 8,
-    marginTop: 5,
-  },
-  addressText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  errorText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  loading: {
-    marginTop: 10,
-  },
-  appList: {
-    width: '100%',
-    bottom: 0,
-    top: -30,
-  },
-  appItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 15,
-    marginVertical: 5,
-    borderRadius: 15,
-  },
-  appIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  iconText: {
-    fontSize: 20,
-  },
-  notificationBadge: {
-    position: 'absolute',
-    right: -5,
-    top: -5,
-    backgroundColor: 'red',
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  notificationBadgeText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-  },
-  appTextContainer: {
-    marginLeft: 15,
-    flex: 1,
-  },
-  appName: {
-    fontSize: 18,
-    fontWeight: '500',
-  },
-  notification: {
-    fontSize: 12,
-    marginTop: 2,
-  },
-  footer: {
-    position: 'absolute',
-    bottom: 50,
-    left: 20,
-    right: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  authButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 25,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 5,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  authButtonText: {
-    fontSize: 16,
-    fontWeight: '500',
+    flexShrink: 1,
   },
   logo: {
-    width: 120,
-    height: 100,
-    marginBottom: 20,
-    borderRadius: 10,
-  },
-  modalContainer: {
-    backgroundColor: '#fff',
+    width: 80,
+    height: 80,
     borderRadius: 20,
-    padding: 20,
-    alignItems: 'center',
-    marginHorizontal: 20,
+    marginTop: Platform.OS === 'ios' ? 10 : 16,
+    marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#ff3333',
-    marginBottom: 10,
+  logoSmall: {
+    width: 70,
+    height: 70,
+    marginBottom: 12,
   },
-  modalCountdown: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#ff3333',
-    marginBottom: 10,
-  },
-  modalText: {
-    fontSize: 16,
-    color: '#333',
+  logoLarge: {
+    width: 90,
+    height: 90,
     marginBottom: 20,
-    textAlign: 'center',
   },
-  cancelButton: {
-    backgroundColor: '#ff3333',
-    borderRadius: 10,
-    paddingVertical: 10,
+  title: {
+    fontSize: scaleFont(36),
+    fontWeight: '800',
+    color: '#414d63',
+    letterSpacing: -0.5,
+    marginBottom: 10,
+  },
+  titleSmall: {
+    fontSize: scaleFont(32),
+    marginBottom: 8,
+  },
+  titleLarge: {
+    fontSize: scaleFont(40),
+    marginBottom: 12,
+  },
+  messageContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  subtitle: {
+    fontSize: scaleFont(15),
+    color: '#718096',
+    textAlign: 'center',
+    lineHeight: 22,
     paddingHorizontal: 20,
   },
-  cancelButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  subtitleSmall: {
+    fontSize: scaleFont(13),
+    lineHeight: 20,
+    paddingHorizontal: 16,
+  },
+  subtitleLarge: {
+    fontSize: scaleFont(17),
+    lineHeight: 24,
+    paddingHorizontal: 24,
+  },
+  circleWrapper: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 1,
+    marginVertical: 10,
+  },
+  outerPartner: {
+    position: 'absolute',
+    alignItems: 'center',
+  },
+  outerIconContainer: {
+    position: 'relative',
+  },
+  outerIcon: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#f8faf9',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  outerIconSmall: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  outerIconLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
+  badge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#ff3366',
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  badgeSmall: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    top: -6,
+    right: -6,
+    borderWidth: 1.5,
+  },
+  badgeLarge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    top: -10,
+    right: -10,
+  },
+  badgeText: {
     color: '#fff',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+  badgeTextSmall: {
+    fontSize: 9,
+  },
+  badgeTextLarge: {
+    fontSize: 13,
+  },
+  outerName: {
+    marginTop: 8,
+    fontSize: scaleFont(12.5),
+    fontWeight: '600',
+    color: '#2d3748',
+    textAlign: 'center',
+  },
+  outerNameSmall: {
+    fontSize: scaleFont(11),
+    marginTop: 6,
+  },
+  outerNameLarge: {
+    fontSize: scaleFont(14),
+    marginTop: 10,
+  },
+  centerPartner: { 
+    alignItems: 'center' 
+  },
+  centerIcon: {
+    width: 86,
+    height: 86,
+    borderRadius: 43,
+    backgroundColor: '#414d63',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#414d63',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 14,
+  },
+  centerIconSmall: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+  },
+  centerIconLarge: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
+  centerName: {
+    marginTop: 12,
+    fontSize: scaleFont(14),
+    fontWeight: '700',
+    color: '#414d63',
+  },
+  centerNameSmall: {
+    fontSize: scaleFont(12),
+    marginTop: 10,
+  },
+  centerNameLarge: {
+    fontSize: scaleFont(16),
+    marginTop: 14,
+  },
+  buttons: {
+    flexDirection: 'row',
+    gap: 14,
+    width: '100%',
+    paddingHorizontal: 10,
+    marginTop: Platform.select({
+      ios: 'auto',
+      android: 10,
+      default: 20
+    }),
+  },
+  buttonsSmall: {
+    gap: 10,
+    paddingHorizontal: 8,
+  },
+  buttonsLarge: {
+    gap: 18,
+    paddingHorizontal: 12,
+  },
+  btnLogin: {
+    flex: 1,
+    height: 56,
+    backgroundColor: '#414d63',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#414d63',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  btnLoginSmall: {
+    height: 50,
+    borderRadius: 12,
+  },
+  btnLoginLarge: {
+    height: 62,
+    borderRadius: 16,
+  },
+  btnLoginText: { 
+    color: 'white', 
+    fontSize: scaleFont(17), 
+    fontWeight: '600' 
+  },
+  btnLoginTextSmall: {
+    fontSize: scaleFont(15),
+  },
+  btnLoginTextLarge: {
+    fontSize: scaleFont(19),
+  },
+  btnSignup: {
+    flex: 1,
+    height: 56,
+    backgroundColor: 'white',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnSignupSmall: {
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  btnSignupLarge: {
+    height: 62,
+    borderRadius: 16,
+    borderWidth: 2.5,
+  },
+  btnSignupText: { 
+    color: '#414d63', 
+    fontSize: scaleFont(17), 
+    fontWeight: '600' 
+  },
+  btnSignupTextSmall: {
+    fontSize: scaleFont(15),
+  },
+  btnSignupTextLarge: {
+    fontSize: scaleFont(19),
   },
 });
+
+export default Bienvenue;

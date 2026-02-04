@@ -10,6 +10,7 @@ export default function Connexion({ navigation }) {
   const [user] = useContext(GlobalContext);
 
   useEffect(() => {
+    
     // Vérifier la présence du matricule dans AsyncStorage
     const checkMatricule = async () => {
       try {

@@ -111,19 +111,19 @@ export default function Caisses() {
 
   // Filtrage des transactions
   const filteredTransactions = transactions.filter((item) => {
-    const isInDate = isPeriodFilterActive ? filterByPeriod(item.date_transaction) : filterByDate(item.date_transaction);
+    const isInDate = isPeriodFilterActive ? filterByPeriod(item.date_caisse) : filterByDate(item.date_caisse);
 
-    if (typeFilter === "Vente") return isInDate && item.type_transaction === "Vente";
-    if (typeFilter === "Achat") return isInDate && item.type_transaction === "Achat";
+    if (typeFilter === "Vente") return isInDate && item.type_caisse === "Vente";
+    if (typeFilter === "Achat") return isInDate && item.type_caisse === "Achat";
     return isInDate;
   });
 
   const totalVente = filteredTransactions
-    .filter((t) => t.type_transaction === "Vente")
+    .filter((t) => t.type_caisse === "Vente")
     .reduce((sum, t) => sum + parseFloat(t.montant_total), 0);
 
   const totalAchat = filteredTransactions
-    .filter((t) => t.type_transaction === "Achat")
+    .filter((t) => t.type_caisse === "Achat")
     .reduce((sum, t) => sum + parseFloat(t.montant_total), 0);
 
   const solde = totalVente - totalAchat;
@@ -142,9 +142,9 @@ const handleAddTransaction = async () => {
     return;
   }
 
-  // Valider numero_transaction pour les mises à jour
+  // Valider numero_caisse pour les mises à jour
   if (editingTransaction) {
-    const numeroTransaction = editingTransaction.numero_transaction;
+    const numeroTransaction = editingTransaction.numero_caisse;
     if (!numeroTransaction) {
       //console.error("Numéro de transaction invalide:", numeroTransaction);
       Alert.alert("Message","❌ Numéro de transaction invalide pour la mise à jour");
@@ -158,14 +158,14 @@ const handleAddTransaction = async () => {
 
   // Données à envoyer
   const requestData = {
-    numero_transaction: editingTransaction ? editingTransaction.numero_transaction : null,
+    numero_caisse: editingTransaction ? editingTransaction.numero_caisse : null,
     utilisateur_id: user.matricule,
-    motif_transaction: motif,
-    montant_transaction: parsedMontant,
+    motif_caisse: motif,
+    montant_caisse: parsedMontant,
     montant_total: parsedMontant, // <-- ajouté
-    type_transaction: type,
-    date_transaction: date,
-    heure_transaction: heure,
+    type_caisse: type,
+    date_caisse: date,
+    heure_caisse: heure,
   };
 
   // Journaliser les données envoyées pour débogage
@@ -227,7 +227,7 @@ const handleAddTransaction = async () => {
 
   try {
     const res = await fetch(
-      `https://rouah.net/api/caisses-delete.php?numero_transaction=${editingTransaction.numero_transaction}`,
+      `https://rouah.net/api/caisses-delete.php?numero_caisse=${editingTransaction.numero_caisse}`,
       { method: "POST" }
     );
 
@@ -279,24 +279,24 @@ const handleAddTransaction = async () => {
 
   const openEditModal = (transaction) => {
     setEditingTransaction(transaction);
-    setMotif(transaction.motif_transaction);
+    setMotif(transaction.motif_caisse);
     setMontant(transaction.montant_total.toString());
-    setType(transaction.type_transaction);
-    setDate(transaction.date_transaction);
-    setHeure(transaction.heure_transaction);
-    setDateTime(new Date(`${transaction.date_transaction}T${transaction.heure_transaction}`));
+    setType(transaction.type_caisse);
+    setDate(transaction.date_caisse);
+    setHeure(transaction.heure_caisse);
+    setDateTime(new Date(`${transaction.date_caisse}T${transaction.heure_caisse}`));
     setModalVisible(true);
   };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity onPress={() => openEditModal(item)} style={styles.row}>
       <Text style={styles.date}>
-        {formatDate(item.date_transaction)} {item.heure_transaction}
+        {formatDate(item.date_caisse)} {item.heure_caisse}
       </Text>
-      <Text style={item.type_transaction === "Vente" ? styles.vente : styles.achat}>
+      <Text style={item.type_caisse === "Vente" ? styles.vente : styles.achat}>
         {formatAmount(item.montant_total)}
       </Text>
-      <Text style={styles.motif}>{item.motif_transaction}</Text>
+      <Text style={styles.motif}>{item.motif_caisse}</Text>
     </TouchableOpacity>
   );
 
@@ -382,7 +382,7 @@ const SkeletonCard = () => (
 
       <FlatList
         data={filteredTransactions}
-        keyExtractor={(item) => item.numero_transaction}
+        keyExtractor={(item) => item.numero_caisse}
         renderItem={renderItem}
         style={{ marginBottom: 10 }}
       />

@@ -1,3 +1,4 @@
+import React, { useState, useEffect,useContext } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
@@ -6,6 +7,7 @@ import EditionAnnonce from "../screens/edition-annonce";
 import Annonces from "../screens/annonces";
 import MonCatalogueArticle from "../screens/edition-article";
 import Caisses from '../screens/caisses';
+import { GlobalContext } from '../global/GlobalState';
 
 const Tab = createBottomTabNavigator();
 
@@ -23,6 +25,31 @@ const CustomHeader = () => {
 };
 
 export default function BottomTabs() {
+
+  const [nombreCommandes, setNombreCommandes] = useState(0);
+  const [user] = useContext(GlobalContext);
+
+useEffect(() => {
+  const fetchCommandes = async () => {
+    try {
+      const response = await fetch(`https://rouah.net/api/nombre-commande.php?matricule=${user?.matricule}`);
+      const result = await response.json();
+        const affichage = result > 99 ? "99+" : result;
+      setNombreCommandes(affichage);
+  
+    } catch (error) {
+      console.log("Erreur chargement commandes", error);
+    }
+  };
+
+  const intervalId = setInterval(fetchCommandes, 1000);
+    return () => clearInterval(intervalId);
+}, []);
+
+
+
+
+
   return (
     <Tab.Navigator
       initialRouteName="Accueil"
@@ -32,6 +59,20 @@ export default function BottomTabs() {
         headerLeft: () => <CustomHeader />,
         headerRight: () => (
           <View style={{ flexDirection: 'row' }}>
+             <TouchableOpacity 
+  onPress={() => navigation.navigate('Commandes clients')}
+  style={styles.logoutButton2}
+>
+  <View>
+    <Icon name="shopping-cart" size={26} color="#414d63" />
+    {nombreCommandes > 0 && (
+      <View style={styles.badgeContainer}>
+        <Text style={styles.badgeText}>{nombreCommandes}</Text>
+      </View>
+    )}
+  </View>
+</TouchableOpacity>
+
             <TouchableOpacity 
               onPress={() => navigation.navigate('Menu principal')}
               style={styles.logoutButton2}
@@ -141,7 +182,7 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   logoutButton2: {
-    marginRight: 5,
+    marginRight: 3,
     padding: 8,
   },
   avatarImg: {
@@ -186,4 +227,23 @@ const styles = StyleSheet.create({
     elevation: 5,
     backgroundColor: '#fff',
   },
+  // badge
+  badgeContainer: {
+  position: 'absolute',
+  right: -2,
+  top: -2,
+  backgroundColor: '#fa4447',
+  borderRadius: 8,
+  minWidth: 16,
+  height: 16,
+  justifyContent: 'center',
+  alignItems: 'center',
+  paddingHorizontal: 2,
+},
+badgeText: {
+  color: '#fff',
+  fontSize: 9,
+  fontWeight: 'bold',
+},
+
 });

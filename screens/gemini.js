@@ -1,326 +1,136 @@
-import React, { useState, useEffect, useCallback, useRef,useContext } from 'react';
+import React from 'react';
 import {
-  FlatList,
   View,
   Text,
-  Image,
-  TouchableOpacity,
-  Animated,
   StyleSheet,
   Dimensions,
-  RefreshControl,
-  ActivityIndicator,
-  TextInput,
+  Image,
 } from 'react-native';
-import Swiper from 'react-native-swiper';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { GlobalContext } from '../global/GlobalState';
+import QRCode from 'react-native-qrcode-svg';
 
 const { width } = Dimensions.get('window');
-const CARD_HEIGHT = (width * 9) / 16;
+const cardWidth = width * 0.9;
+const cardHeight = cardWidth * 0.56; // Ratio proche d'une carte de visite standard
 
-// ---------------- SkeletonCard ----------------
-function SkeletonCard() {
+const BusinessCard = () => {
+  // Valeur du QR code : tu peux mettre une URL ou une vCard
+  const qrValue = `BEGIN:VCARD
+VERSION:3.0
+N:Koffi;Eric;;;
+FN:Eric Koffi
+ORG:CYBERIC
+TITLE:Ingénieur informaticien
+TEL:+2250709107849
+EMAIL:erickoffi@rouah.net
+URL:https://cyberic.example.com
+END:VCARD`;
+
   return (
-    <View style={styles.card}>
-      <View style={[styles.header, { padding: 10 }]}>
-        <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: '#ccc', marginRight: 10 }} />
-        <View style={{ flex: 1 }}>
-          <View style={{ width: '50%', height: 10, backgroundColor: '#e0e0e0', marginBottom: 5 }} />
-          <View style={{ width: '30%', height: 10, backgroundColor: '#e0e0e0' }} />
+    <View style={styles.container}>
+      <View style={styles.card}>
+        {/* Logo à gauche */}
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('../assets/cyberic.png')} // Assure-toi que le chemin est correct
+            style={styles.logo}
+            resizeMode="contain"
+          />
         </View>
-      </View>
-      <View style={{ padding: 10 }}>
-        <View style={{ width: '80%', height: 15, backgroundColor: '#e0e0e0', marginBottom: 5 }} />
-        <View style={{ width: '100%', height: CARD_HEIGHT, backgroundColor: '#ccc' }} />
+
+        {/* Informations à droite */}
+        <View style={styles.infoContainer}>
+          <Text style={styles.name}>KOFFI ERIC</Text>
+          <Text style={styles.title}>Ingénieur informaticien</Text>
+          <Text style={styles.email}>erickoffi@rouah.net</Text>
+          <Text style={styles.phone}>0709107849</Text>
+        </View>
+
+        {/* QR Code en bas à droite */}
+        <View style={styles.qrContainer}>
+          <QRCode
+            value={qrValue}
+            size={50}
+            color="#D4AF37"
+            backgroundColor="transparent"
+          />
+        </View>
+
+        {/* Nom de l'entreprise en bas à gauche */}
+        
       </View>
     </View>
   );
-}
+};
 
-// ---------------- AnnonceItem ----------------
-function AnnonceItem({ item,navigation }) {
-  const imageOpacity = useRef(new Animated.Value(0)).current;
-  const onLoad = () => {
-    Animated.timing(imageOpacity, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const images = [
-    item.photo,
-    ...(item.albums && Array.isArray(item.albums) ? item.albums : []),
-  ].filter(Boolean);
-
-  return (
-     <TouchableOpacity
-      activeOpacity={0.8}
-      onPress={() => navigation.navigate("Details d'annonce", { code: item.code })}
-    >
-    <View style={styles.card}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Image
-          source={item.user_photo ? { uri: item.user_photo } : require('../assets/logo.png')}
-          style={styles.userPhoto}
-        />
-        <View>
-          <Text style={styles.userName}>{item.nom_prenom || 'Utilisateur'}</Text>
-          <Text style={styles.date}>{item.date} {item.heure}</Text>
-        </View>
-      </View>
-
-      {/* Contenu */}
-      <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
-        {item.titre ? <Text style={styles.titre}>{item.titre}</Text> : null}
-        {item.description ? <Text style={styles.description}>{item.description}</Text> : null}
-
-        {images.length > 0 && (
-          <View style={{ height: CARD_HEIGHT }}>
-            <Swiper
-              autoplay={false}
-              showsPagination={true}
-              dotStyle={{ width: 8, height: 8 }}
-              activeDotStyle={{ width: 8, height: 8 }}
-            >
-              {images.map((img, index) => (
-                <Animated.Image
-                  key={index}
-                  source={{ uri: img }}
-                  style={[styles.image, { opacity: imageOpacity }]}
-                  resizeMode="cover"
-                  onLoad={onLoad}
-                />
-              ))}
-            </Swiper>
-          </View>
-        )}
-
-        <View style={styles.footer}>
-          {item.categorie ? <Text style={styles.categorie}>{item.categorie}</Text> : null}
-          {item.vues ? <Text style={styles.prix}>{item.vues} vues</Text> : null}
-        </View>
-      </View>
-    </View>
-    </TouchableOpacity>
-  );
-}
-
-// ---------------- Feed Component ----------------
-export default function Annonces({ navigation }) {
-  const [data, setData] = useState([]);
-  const [filteredData, setFilteredData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [searchText, setSearchText] = useState('');
-  const [error, setError] = useState('');
-  const [user] = useContext(GlobalContext);
-
-  const limit = 2;
-
-  const loadData = useCallback((reset = false) => {
-    if (!hasMore && !reset) return;
-
-    const currentPage = reset ? 1 : page;
-    if (currentPage === 1) setLoading(true);
-    else setLoadingMore(true);
-
-    fetch(`https://rouah.net/annonces.php?page=${currentPage}&limit=${limit}`)
-      .then(res => res.json())
-      .then(json => {
-        if (json.success) {
-          const newData = reset ? json.data : [...data, ...json.data];
-          setData(newData);
-          setFilteredData(newData);
-          setPage(reset ? 2 : page + 1);
-          setHasMore(json.data.length >= limit);
-          setError('');
-        } else {
-          setError('Erreur de chargement des annonces.');
-        }
-      })
-      .catch(() => setError('Impossible de se connecter au serveur.'))
-      .finally(() => {
-        setLoading(false);
-        setLoadingMore(false);
-        setRefreshing(false);
-      });
-  }, [page, hasMore, data]);
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    setHasMore(true);
-    loadData(true);
-  };
-
-  const handleRefresh = () => {
-    setError('');
-    onRefresh();
-  };
-
-  const handleSearch = (text) => {
-    setSearchText(text);
-    if (!text.trim()) {
-      setFilteredData(data);
-    } else {
-      const filtered = data.filter(item =>
-        (item.titre && item.titre.toLowerCase().includes(text.toLowerCase())) ||
-        (item.categorie && item.categorie.toLowerCase().includes(text.toLowerCase())) ||
-        (item.nom_prenom && item.nom_prenom.toLowerCase().includes(text.toLowerCase()))
-      );
-      setFilteredData(filtered);
-    }
-  };
-
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return <ActivityIndicator style={{ marginVertical: 20 }} size="large" color="#fa4447" />;
-  };
-
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <MaterialCommunityIcons color="#fa4447" name="access-point-off" size={150} />
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={handleRefresh}>
-          <Text style={styles.retryButtonText}>Réessayer</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  if (loading && page === 1) {
-    return (
-      <FlatList
-        data={[...Array(2).keys()]}
-        keyExtractor={(_, index) => `skeleton-${index}`}
-        renderItem={() => <SkeletonCard />}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
-    );
-  }
-
-  return (
-    <View style={{ flex: 1 }}>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Rechercher une annonce..."
-        value={searchText}
-        onChangeText={handleSearch}
-      />
-
-      <FlatList
-        data={filteredData}
-        keyExtractor={item => item.code}
-        renderItem={({ item }) => <AnnonceItem item={item} navigation={navigation} />}
-        onEndReached={() => loadData()}
-        onEndReachedThreshold={0.5}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        ListFooterComponent={renderFooter}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
-
-      {user?.matricule && (
-        <TouchableOpacity
-          style={styles.floatingButtonRight}
-          onPress={() => navigation.navigate('Mes annonces')}
-        >
-          <Feather name="copy" size={24} color="white" />
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-// ---------------- Styles ----------------
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: '#fff',
-    marginVertical: 8,
-    marginHorizontal: 10,
-    borderRadius: 8,
-    overflow: 'hidden',
-    elevation: 2,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-  },
-  userPhoto: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    marginRight: 10,
-    backgroundColor: '#ccc',
-  },
-  userName: { fontWeight: '700', fontSize: 14 },
-  date: { fontSize: 12, color: '#888' },
-  titre: { fontSize: 16, fontWeight: '600', marginBottom: 5 },
-  description: { fontSize: 14, marginBottom: 10, color: '#555' },
-  image: { width: '100%', height: CARD_HEIGHT, backgroundColor: '#eee', borderRadius: 8 },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 5,
-  },
-  categorie: { fontSize: 12, color: '#888' },
-  prix: { fontSize: 12, fontWeight: '700' },
-  searchInput: {
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    borderRadius: 8,
-    margin: 10,
-    paddingHorizontal: 10,
-    backgroundColor: '#fff',
-  },
-  errorContainer: {
+  container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#000',
   },
-  errorText: {
-    fontSize: 16,
-    color: '#fa4447',
-    textAlign: 'center',
-    marginVertical: 20,
-  },
-  retryButton: {
-    backgroundColor: '#fa4447',
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-   floatingButtonRight: {
-    position: 'absolute',
-    bottom: 30,
-    right: 20,
-    backgroundColor: '#fa4447',
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 5,
+  card: {
+    width: cardWidth,
+    height: cardHeight,
+    backgroundColor: '#2F241F', // Marron très foncé
+    borderRadius: 16,
+    padding: 30,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.6,
+    shadowRadius: 25,
+    elevation: 25,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  logoContainer: {
+    position: 'absolute',
+    
+  },
+  logo: {
+    width: 200,
+    height: 200,
+  },
+  infoContainer: {
+    justifyContent: 'center',
+    alignItems:'flex-end',
+  },
+  name: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#D4AF37',
+    letterSpacing: 1,
+  },
+  title: {
+    fontSize: 18,
+    color: '#D4AF37',
+    marginTop: 8,
+    opacity: 0.9,
+  },
+  email: {
+    fontSize: 17,
+    color: '#D4AF37',
+    marginTop: 20,
+  },
+  phone: {
+    fontSize: 17,
+    color: '#D4AF37',
+    marginTop: 6,
+  },
+  qrContainer: {
+    position: 'absolute',
+    right: 30,
+    bottom: 30,
+  },
+  company: {
+    position: 'absolute',
+    left: 30,
+    bottom: 30,
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#D4AF37',
+    letterSpacing: 1,
   },
 });
+
+export default BusinessCard;

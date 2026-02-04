@@ -20,21 +20,34 @@ import AnnonceDetails from '../screens/details-annonce';
 import EditionAnnonce from '../screens/edition-annonce';
 import ListeContact from '../screens/liste-contact';
 import PaiementInitial from '../screens/paiement-initial';
-import EditionBoutique from '../screens/edition-boutique';
-import ZoneBoutique from '../screens/zone-boutique';
 import BadgeCommercial from '../screens/badge-commercial';
-import Categories from '../screens/liste-categorie';
-import Partenaires from '../screens/liste-partenaire';
 import CatalogueArticle from '../screens/catalogue-article';
 import Informations from '../screens/informations';
-import AvisRecherche from '../screens/avis-recherche';
 import MonCatalogueArticle from '../screens/edition-article';
-import Outils from '../screens/outils';
 import CodeMarchand from '../screens/code-marchand';
-import Publicites from '../screens/publicites';
 import Caisses from '../screens/caisses';
-
-
+import Licences from '../screens/licences';
+import Chaines from '../screens/liste-chaine';
+import CatalogueChaine from '../screens/cataogue-chaine';
+import Cartes from '../screens/cartes';
+import Videos from '../screens/videos';
+import Recherche from '../screens/recherche';
+import ArticleDetails from '../screens/details-article';
+import CommandesClients from '../screens/commandes-clients';
+import MesCommandes from '../screens/commandes-perso';
+import MotPasseOublie from '../screens/mot-passe-oublie';
+import Diplomes from '../screens/diplome';
+import Factures from '../screens/facture';
+import RecuCaisse from '../screens/recu-caisse';
+import Outils from '../screens/outils';
+import CarteVisite from '../screens/carte-visite';
+import CurriculumVitae from '../screens/curriculum-vitae';
+import Terminal from '../screens/terminal';
+import Comptoir from '../screens/comptoir';
+import Partenaires from '../screens/partenaire';
+import Tendances from '../screens/tendance';
+import Galerie from '../screens/galerie';
+import Qrcode from '../screens/qrcode';
 
 
 const Stack = createNativeStackNavigator();
@@ -57,24 +70,39 @@ const Routes = () => {
           <Stack.Screen name='Login user' component={LoginUser} options={{headerShown: true}}/>
           <Stack.Screen name='Login pass' component={LoginPass} options={{headerShown: true}}/>
           <Stack.Screen name="Edition d'annonce" component={EditionAnnonce} options={{headerShown: true}}/>
-          <Stack.Screen name="Avis de recherche" component={AvisRecherche} options={{headerShown: true}}/>
-          <Stack.Screen name="Publicites" component={Publicites} options={{headerShown: true}}/>
           <Stack.Screen name="Mes annonces" component={ListeAnnonce} options={{headerShown: true}}/>
           <Stack.Screen name="Annonces" component={Annonces} options={{headerShown: true}}/>
           <Stack.Screen name="Details d'annonce" component={AnnonceDetails} options={{headerShown: true}}/>
-          <Stack.Screen name="Edition de zone" component={EditionBoutique} options={{headerShown: true}}/>
-          <Stack.Screen name='Zones marchandes' component={ZoneBoutique} options={{ headerShown: true }}/>
           <Stack.Screen name='Contacts' component={ListeContact} options={{headerShown: true}}/>
           <Stack.Screen name='Paiement UVE' component={PaiementInitial} options={{headerShown: true}}/>
           <Stack.Screen name='Code marchand' component={CodeMarchand} options={{headerShown: true}}/>
           <Stack.Screen name="Badge commercial" component={BadgeCommercial} options={{headerShown: true}}/>
-          <Stack.Screen name="Categories" component={Categories} options={{headerShown: true}}/>
-          <Stack.Screen name="Partenaires" component={Partenaires} options={{headerShown: true}}/>
+          <Stack.Screen name="Chaines" component={Chaines} options={{headerShown: true}}/>
+          <Stack.Screen name="Produits" component={CatalogueChaine} options={{headerShown: true}}/>
           <Stack.Screen name="Articles" component={CatalogueArticle} options={{headerShown: true}}/>
+          <Stack.Screen name="Details d'article" component={ArticleDetails} options={{headerShown: true}}/>
           <Stack.Screen name="Caisses" component={Caisses} options={{headerShown: true}}/>
           <Stack.Screen name="Mes articles" component={MonCatalogueArticle} options={{headerShown: true}}/>
           <Stack.Screen name="Informations" component={Informations} options={{headerShown: true}}/>
+          <Stack.Screen name="Partenaires" component={Partenaires} options={{headerShown: true}}/>
+          <Stack.Screen name="Licences" component={Licences} options={{headerShown: true}}/>
+          <Stack.Screen name="Cartes" component={Cartes} options={{headerShown: true}}/>
+          <Stack.Screen name="Videos" component={Videos} options={{headerShown: true}}/>
+          <Stack.Screen name="Je cherche" component={Recherche} options={{headerShown: true}}/>
+          <Stack.Screen name="Commandes clients" component={CommandesClients} options={{headerShown: true}}/>
+          <Stack.Screen name="Mes commandes" component={MesCommandes} options={{headerShown: true}}/>
+          <Stack.Screen name="Mot de passe" component={MotPasseOublie} options={{headerShown: true}}/>
+          <Stack.Screen name="Comptoir" component={Comptoir} options={{headerShown: false}}/>
+          <Stack.Screen name="Diplomes" component={Diplomes} options={{headerShown: false}}/>
+          <Stack.Screen name="Factures" component={Factures} options={{headerShown: true}}/>
+          <Stack.Screen name="Recu de caisse" component={RecuCaisse} options={{headerShown: true}}/>
           <Stack.Screen name="Outils" component={Outils} options={{headerShown: true}}/>
+          <Stack.Screen name="Carte de visite" component={CarteVisite} options={{headerShown: true}}/>
+          <Stack.Screen name="Curriculum vitae" component={CurriculumVitae} options={{headerShown: true}}/>
+          <Stack.Screen name="Terminal" component={Terminal} options={{headerShown: false}}/>
+          <Stack.Screen name="Tendances" component={Tendances} options={{headerShown: true}}/>
+           <Stack.Screen name="Galeries" component={Galerie} options={{headerShown: false}}/>
+           <Stack.Screen name="QR Code" component={Qrcode} options={{headerShown: true}}/>
           <Stack.Screen name='Déconnexion' component={Deconnexion} options={{headerShown: true}}/>          
 
       </Stack.Navigator>

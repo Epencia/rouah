@@ -1,12 +1,12 @@
 import React, {  useState, useContext } from 'react';
 import {
   StyleSheet,
-  SafeAreaView,
   View,Alert,
   Text,Linking,
   TextInput,ScrollView,
   TouchableOpacity,Image,StatusBar
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlobalContext } from '../global/GlobalState';
 
 

@@ -31,14 +31,12 @@ export default function ListeContact({ navigation }) {
   const handleRefresh = () => {
     setRefreshing(true);
     getListeContact();
-    getFamilleContact();
     setRefreshing(false);
   };
 
   // Effet initial
   useEffect(() => {
     const delay = 10000;
-    getFamilleContact();
     getListeContact();
     const intervalId = setInterval(getListeContact2, delay);
     return () => clearInterval(intervalId);
@@ -91,44 +89,7 @@ const getListeContact2 = async () => {
 }
 }
 
-  // Valider la sélection
-  const handleValidate = async (phoneNumber) => {
-    if (!phoneNumber) {
-      Alert.alert('Aucun contact sélectionné');
-      return;
-    }
-    try {
-     
-      const response = await fetch('https://rouah.net/api/edition-famille.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          demandeur: user.matricule,
-          receveur: phoneNumber
-        }),
-      });
 
-      const result = await response.json();
-      Alert.alert('Message', result.message || result);
-      getFamilleContact(); // Rafraîchir la liste après modification
-
-    } catch (err) {
-      Alert.alert('Erreur', err.message || 'Échec de l\'opération');
-    }
-  };
-
-  // Charger les contacts existants
-  const getFamilleContact = async () => {
-    try {
-
-      const response = await fetch(`https://rouah.net/api/liste-famille.php?matricule=${user?.matricule}`);
-      if (!response.ok) return;
-      const data = await response.json();
-      setFamille(data);
-    } catch (error) {
-      console.error('Erreur chargement contacts existants:', error);
-    }
-  };
 
   // Récupérer et envoyer les contacts
   const getAndSendContacts = async () => {
@@ -194,7 +155,7 @@ const getListeContact2 = async () => {
           famille.some(f => cleanPhoneNumber(f.telephone) === cleanPhoneNumber(item.telephone_contact)) && 
             styles.selectedContact,
         ]}
-        onPress={() => handleValidate(item.telephone_contact)}
+        onPress={() => Alert.alert(item.nom_prenom_contact,item.telephone_contact)}
         activeOpacity={0.8}
       >
         <View style={styles.contactInfo}>
@@ -215,14 +176,30 @@ const getListeContact2 = async () => {
     );
   };
 
-  // Erreur et Chargement
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#5500dc" />
+  const SkeletonCard = () => {
+  return (
+    <View style={styles.skeletonCard}>
+      <View style={styles.skeletonAvatar} />
+      <View style={styles.skeletonTextContainer}>
+        <View style={styles.skeletonTextShort} />
+        <View style={styles.skeletonTextLong} />
       </View>
-    );
-  }
+    </View>
+  );
+};
+
+
+  // Erreur et Chargement
+ if (isLoading) {
+  return (
+    <View style={{ flex: 1, padding: 16 }}>
+      {[...Array(6)].map((_, i) => (
+        <SkeletonCard key={i} />
+      ))}
+    </View>
+  );
+}
+
 
   if (error) {
     return (
@@ -421,4 +398,36 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     zIndex: 3,
   },
+  skeletonCard: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 15,
+  marginVertical: 5,
+  borderRadius: 8,
+  backgroundColor: '#f0f0f0',
+},
+skeletonAvatar: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#e0e0e0',
+  marginRight: 12,
+},
+skeletonTextContainer: {
+  flex: 1,
+},
+skeletonTextShort: {
+  height: 10,
+  width: '40%',
+  backgroundColor: '#e0e0e0',
+  marginBottom: 6,
+  borderRadius: 4,
+},
+skeletonTextLong: {
+  height: 10,
+  width: '70%',
+  backgroundColor: '#e0e0e0',
+  borderRadius: 4,
+},
+
 });

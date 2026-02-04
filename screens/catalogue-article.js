@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, TouchableOpacity, ActivityIndicator, Linking, Dimensions, RefreshControl, TextInput, Modal, ScrollView } from 'react-native';
-import { MaterialCommunityIcons, Feather } from '@expo/vector-icons';
+import { MaterialCommunityIcons, Feather, MaterialIcons } from '@expo/vector-icons';
+import Swiper from 'react-native-swiper';
 
 const { width } = Dimensions.get('window');
 const ITEM_WIDTH = (width - 45) / 2; // Two columns with padding
@@ -14,6 +15,12 @@ export default function CatalogueArticle({ navigation }) {
   const [error, setError] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedArticle, setSelectedArticle] = useState(null);
+
+  // Formatage des montants
+  const formatAmount = (value) => {
+    if (!value) return "0";
+    return parseFloat(value).toLocaleString("fr-FR", { minimumFractionDigits: 0 });
+  };
 
   // Fetch articles from API
   const fetchArticles = useCallback(async () => {
@@ -53,7 +60,8 @@ export default function CatalogueArticle({ navigation }) {
     const filtered = articles.filter(
       (item) =>
         item.titre?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+        item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item.nom_prenom?.toLowerCase().includes(searchTerm.toLowerCase())
     );
     setFilteredArticles(filtered);
   }, [searchTerm, articles]);
@@ -71,110 +79,215 @@ export default function CatalogueArticle({ navigation }) {
   };
 
   const renderArticle = ({ item }) => {
-    const youtubeId = item.youtube_url?.includes('youtube.com')
-      ? item.youtube_url.split('v=')[1]?.split('&')[0]
-      : item.youtube_url;
+  // Filtrer uniquement les images de l'album
+  const albumImages = item.albums?.filter((media) => media.type.startsWith('image/')) || [];
 
-    return (
+  // Ajouter la photo principale en première position si elle existe
+  const sliderImages = item.photo_base64
+    ? [
+        {
+          uri: `data:${item.type_photo || 'image/jpeg'};base64,${item.photo_base64}`,
+          type: item.type_photo || 'image/jpeg',
+        },
+        ...albumImages,
+      ]
+    : albumImages;
+
+  const hasSlider = sliderImages.length > 0;
+
+  const youtubeId = item.youtube_url?.includes('youtube.com')
+    ? item.youtube_url.split('v=')[1]?.split('&')[0]
+    : item.youtube_url;
+
+  return (
+    <TouchableOpacity
+      style={styles.articleContainer}
+      activeOpacity={0.8}
+      onPress={() => openModal(item)}
+    >
+      <View style={styles.imageContainer}>
+  {hasSlider ? (
+    <Swiper
+      style={styles.sliderWrapper} // Utilisation d'un style fixe
+      showsButtons={sliderImages.length > 1}
+      loop={sliderImages.length > 1}
+      autoplay={true}
+      autoplayTimeout={4}
+      showsPagination={sliderImages.length > 1}
+      paginationStyle={styles.swiperPagination}
+      dotStyle={styles.swiperDot}
+      activeDotStyle={styles.swiperActiveDot}
+    >
+      {sliderImages.map((media, index) => (
+        <View key={index} style={styles.swiperSlide}>
+          <Image
+            source={{ uri: media.uri }}
+            style={styles.articleImage}
+            resizeMode="cover"
+          />
+        </View>
+      ))}
+    </Swiper>
+  ) : (
+    <Image
+      source={require('../assets/logo.png')}
+      style={styles.articleImage}
+      resizeMode="cover"
+    />
+  )}
+
+  {youtubeId && (
+    <TouchableOpacity
+      style={styles.youtubeButton}
+      onPress={() => Linking.openURL(item.youtube_url)}
+    >
+      <MaterialCommunityIcons name="youtube" size={20} color="white" />
+    </TouchableOpacity>
+  )}
+</View>
+
+
+      <Text style={styles.articleTitle} numberOfLines={2}>{item.titre}</Text>
+      <Text style={styles.articlePrice}>
+        {item.prix ? `${formatAmount(item.prix)} ${item.devise}` : 'Prix non spécifié'}
+      </Text>
+
+      <View style={styles.userContainer}>
+        {item.user_photo_base64 ? (
+          <Image
+            source={{ uri: `data:${item.user_type || 'image/jpeg'};base64,${item.user_photo_base64}` }}
+            style={styles.userImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.userImage}
+            resizeMode="cover"
+          />
+        )}
+        <Text style={styles.userName}>{item.nom_prenom || 'Inconnu'}</Text>
+      </View>
+
       <TouchableOpacity
-        style={styles.articleContainer}
-        activeOpacity={0.8}
+        style={styles.viewDetailsButton}
         onPress={() => openModal(item)}
       >
-        <View style={styles.imageContainer}>
-          {item.photo_base64 ? (
-            <Image
-              source={{ uri: `data:image/${item.type_photo || 'jpeg'};base64,${item.photo_base64}` }}
-              style={styles.articleImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <Image
-              source={require('../assets/logo.png')}
-              style={styles.articleImage}
-              resizeMode="cover"
-            />
-          )}
-        </View>
-        <Text style={styles.articleTitle} numberOfLines={2}>{item.titre}</Text>
-        <Text style={styles.articlePrice}>
-          {item.prix ? `${item.prix} f.cfa` : 'Prix non spécifié'}
-        </Text>
-        <Text style={styles.articleQuantity}>
-          Stock : {item.quantite || 'N/A'}
-        </Text>
-        <TouchableOpacity
-          style={styles.viewDetailsButton}
-          onPress={() => openModal(item)}
-        >
-          <Text style={styles.viewDetailsButtonText}>Voir détails</Text>
-        </TouchableOpacity>
-        {youtubeId && (
-          <TouchableOpacity
-            style={styles.youtubeButton}
-            onPress={() => Linking.openURL(item.youtube_url)}
+        <Text style={styles.viewDetailsButtonText}>Voir détails</Text>
+      </TouchableOpacity>
+    </TouchableOpacity>
+  );
+};
+
+
+ const renderModalContent = () => {
+  if (!selectedArticle) return null;
+
+  // Filtrer uniquement les images de l'album
+  const albumImages = selectedArticle.albums?.filter(
+    (media) => media.type.startsWith('image/')
+  ) || [];
+
+  // Ajouter la photo principale en première position si elle existe
+  const sliderImages = selectedArticle.photo_base64
+    ? [
+        {
+          uri: `data:${selectedArticle.type_photo || 'image/jpeg'};base64,${selectedArticle.photo_base64}`,
+          type: selectedArticle.type_photo || 'image/jpeg',
+        },
+        ...albumImages,
+      ]
+    : albumImages;
+
+  const hasSlider = sliderImages.length > 0;
+
+  return (
+    <View style={styles.modalContent}>
+      <ScrollView contentContainerStyle={styles.modalScrollContainer}>
+        {hasSlider ? (
+          <Swiper
+            style={styles.swiperContainer}
+            showsButtons={sliderImages.length > 1}
+            loop={sliderImages.length > 1}
+            autoplay={true}
+            autoplayTimeout={4}
+            showsPagination={sliderImages.length > 1}
+            paginationStyle={styles.swiperPagination}
+            dotStyle={styles.swiperDot}
+            activeDotStyle={styles.swiperActiveDot}
           >
-            <MaterialCommunityIcons name="youtube" size={20} color="white" />
+            {sliderImages.map((media, index) => (
+              <View key={index} style={styles.swiperSlide}>
+                <Image
+                  source={{ uri: media.uri }}
+                  style={styles.modalImage}
+                  resizeMode="cover"
+                />
+              </View>
+            ))}
+          </Swiper>
+        ) : (
+          <Image
+            source={require('../assets/logo.png')}
+            style={styles.modalImage}
+            resizeMode="cover"
+          />
+        )}
+
+        <Text style={styles.modalTitle}>{selectedArticle.titre}</Text>
+        <Text style={styles.modalDescription}>{selectedArticle.description}</Text>
+        <Text style={styles.modalPrice}>
+          Prix : {selectedArticle.prix ? `${formatAmount(selectedArticle.prix)} ${selectedArticle.devise}` : 'Non spécifié'}
+        </Text>
+        
+        <Text style={styles.modalOwner}>
+          Vendeur : {selectedArticle.nom_prenom || 'Inconnu'}
+        </Text>
+
+        <View style={styles.contactButtons}>
+          <TouchableOpacity
+            style={[styles.contactButton, styles.callButton]}
+            onPress={() => Linking.openURL(`tel:${selectedArticle.telephone}`)}
+          >
+            <MaterialIcons name="call" size={20} color="#fff" />
+            <Text style={styles.buttonText}>Appel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.contactButton, styles.smsButton]}
+            onPress={() => Linking.openURL(`sms:${selectedArticle.telephone}`)}
+          >
+            <MaterialIcons name="sms" size={20} color="#fff" />
+            <Text style={styles.buttonText}>SMS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.contactButton, styles.whatsappButton]}
+            onPress={() => Linking.openURL(`https://wa.me/${selectedArticle.telephone}`)}
+          >
+            <MaterialCommunityIcons name="whatsapp" size={20} color="#fff" />
+            <Text style={styles.buttonText}>WhatsApp</Text>
+          </TouchableOpacity>
+        </View>
+
+        {selectedArticle.youtube_url && (
+          <TouchableOpacity
+            style={styles.modalYoutubeButton}
+            onPress={() => Linking.openURL(selectedArticle.youtube_url)}
+          >
+            <MaterialCommunityIcons name="youtube" size={24} color="white" />
+            <Text style={styles.modalYoutubeButtonText}>Voir la vidéo</Text>
           </TouchableOpacity>
         )}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
+        <Text style={styles.closeButtonText}>Fermer</Text>
       </TouchableOpacity>
-    );
-  };
+    </View>
+  );
+};
 
-  const renderModalContent = () => {
-    if (!selectedArticle) return null;
-    const youtubeId = selectedArticle.youtube_url?.includes('youtube.com')
-      ? selectedArticle.youtube_url.split('v=')[1]?.split('&')[0]
-      : selectedArticle.youtube_url;
 
-    return (
-      <View style={styles.modalContent}>
-        <ScrollView contentContainerStyle={styles.modalScrollContainer}>
-          {selectedArticle.photo_base64 ? (
-            <Image
-              source={{ uri: `data:image/${selectedArticle.type_photo || 'jpeg'};base64,${selectedArticle.photo_base64}` }}
-              style={styles.modalImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <Image
-              source={require('../assets/logo.png')}
-              style={styles.modalImage}
-              resizeMode="cover"
-            />
-          )}
-          <Text style={styles.modalTitle}>{selectedArticle.titre}</Text>
-          <Text style={styles.modalDescription}>{selectedArticle.description}</Text>
-          <Text style={styles.modalPrice}>
-            Prix : {selectedArticle.prix ? `${selectedArticle.prix} f.cfa` : 'Non spécifié'}
-          </Text>
-          <Text style={styles.modalQuantity}>
-            Stock : {selectedArticle.quantite || 'Non spécifié'}
-          </Text>
-          <Text style={styles.modalOwner}>
-            Vendeur : {selectedArticle.nom_prenom || 'Inconnu'}
-          </Text>
-          <Text style={styles.modalPhone}>
-            Téléphone : {selectedArticle.telephone || 'Non spécifié'}
-          </Text>
-          {youtubeId && (
-            <TouchableOpacity
-              style={styles.modalYoutubeButton}
-              onPress={() => Linking.openURL(selectedArticle.youtube_url)}
-            >
-              <MaterialCommunityIcons name="youtube" size={24} color="white" />
-              <Text style={styles.modalYoutubeButtonText}>Voir la vidéo</Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
-        <TouchableOpacity style={styles.closeButton} onPress={closeModal}>
-          <Text style={styles.closeButtonText}>Fermer</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  };
-
-  // ✅ Skeleton Loader
+  // Skeleton Loader
   const SkeletonCard = () => (
     <View style={styles.articleContainer}>
       <View style={[styles.articleImage, { backgroundColor: '#e0e0e0' }]} />
@@ -290,7 +403,9 @@ const styles = StyleSheet.create({
   articleImage: { width: '100%', height: 150, borderRadius: 8, marginBottom: 8 },
   articleTitle: { fontSize: 14, fontWeight: '600', color: '#333', marginBottom: 5, lineHeight: 18 },
   articlePrice: { fontSize: 14, fontWeight: 'bold', color: '#1E90FF', marginBottom: 5 },
-  articleQuantity: { fontSize: 12, color: '#666', marginBottom: 8 },
+  userContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  userImage: { width: 30, height: 30, borderRadius: 15, marginRight: 8 },
+  userName: { fontSize: 12, color: '#666', fontWeight: '500' },
   viewDetailsButton: { backgroundColor: '#fa4447', paddingVertical: 8, borderRadius: 5, alignItems: 'center' },
   viewDetailsButtonText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
   youtubeButton: { position: 'absolute', top: 10, right: 10, backgroundColor: '#FF0000', padding: 5, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
@@ -309,7 +424,7 @@ const styles = StyleSheet.create({
   modalScrollContainer: { padding: 15 },
   modalImage: { width: '100%', height: 200, borderRadius: 8, marginBottom: 15 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#333', marginBottom: 10 },
-  modalDescription: { fontSize: 14, color: '#666', marginBottom: 10, lineHeight: 20, textAlign:'justify' },
+  modalDescription: { fontSize: 14, color: '#666', marginBottom: 10, lineHeight: 20, textAlign: 'justify' },
   modalPrice: { fontSize: 16, fontWeight: 'bold', color: '#1E90FF', marginBottom: 10 },
   modalQuantity: { fontSize: 14, color: '#666', marginBottom: 10 },
   modalOwner: { fontSize: 14, color: '#666', marginBottom: 10 },
@@ -318,4 +433,20 @@ const styles = StyleSheet.create({
   modalYoutubeButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold', marginLeft: 10 },
   closeButton: { backgroundColor: '#6c757d', padding: 15, borderRadius: 5, alignItems: 'center', margin: 15 },
   closeButtonText: { color: 'white', fontSize: 16, fontWeight: 'bold' },
+  contactButtons: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, marginTop: 10 },
+  contactButton: { flex: 1, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', padding: 12, borderRadius: 8, marginHorizontal: 5 },
+  callButton: { backgroundColor: '#2ecc71' },
+  smsButton: { backgroundColor: '#3498db' },
+  whatsappButton: { backgroundColor: '#25D366' },
+  buttonText: { color: '#fff', marginLeft: 8, fontWeight: 'bold' },
+  swiperContainer: { height: 200, marginBottom: 15 },
+  swiperSlide: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  swiperPagination: { bottom: 10 },
+  swiperDot: { backgroundColor: 'rgba(0,0,0,0.2)', width: 8, height: 8, borderRadius: 4, margin: 3 },
+  swiperActiveDot: { backgroundColor: '#1E90FF', width: 8, height: 8, borderRadius: 4, margin: 3 },
+  sliderWrapper: {
+  height: 150, // Même hauteur que ton articleImage
+  marginBottom: 8,
+},
+
 });

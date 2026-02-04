@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants'; // IMPORT MANQUANT
+import * as Application from 'expo-application'; // IMPORT MANQUANT
 import { Alert, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -24,37 +26,58 @@ const NotificationManager = () => {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('Permission pour les notifications refusée');
+        //console.log('Permission pour les notifications refusée');
         return null;
       }
 
       const token = (await Notifications.getExpoPushTokenAsync()).data;
       return token;
     } catch (error) {
-      console.error('Erreur de récupération du token :', error);
+      //console.error('Erreur de récupération du token :', error);
       return null;
     }
   };
 
   const sendTokenToServer = async (token) => {
     try {
-      if (!matricule || !token) return;
+      if (!token) return;
+
+      // Récupérer les informations du device
+            const deviceInfo = {
+              Proprietaire: Device.deviceName || 'Inconnu',
+              Annee: Device.deviceYearClass || 'Inconnu',
+              Marque: Device.brand || 'Inconnu',
+              Modele: Device.modelName|| Device.modelId  || 'Inconnu',
+              VersionOS: Device.osVersion || 'Inconnu',
+              Plateforme: Device.platformApiLevel || 'Inconnu',
+              buildVersion: Application.nativeBuildVersion || '1',
+              Design: Device.designName || 'Inconnu',
+              UID: (await Device.getDeviceTypeAsync()) || 'Inconnu',
+              Date: new Date().toISOString(),
+              Application: Constants.expoConfig?.name || 'Rouah',
+            };
+
+             // Préparer les données pour l'envoi
+      const postData = {
+        utilisateur_id: utilisateur_id,
+        push_token: token,
+        device: JSON.stringify(deviceInfo)
+      };
+
 
       const response = await fetch('https://rouah.net/api/save-token.php', {
         method: 'POST',
-        headers: {
+        headers: { 
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({
-          utilisateur_id: matricule,
-          push_token: token,
-        }),
+        body: JSON.stringify(postData),
       });
 
       const result = await response.json();
       console.log('Token envoyé au serveur:', result);
     } catch (error) {
-      console.error("Erreur d'envoi du token :", error);
+      //console.error("Erreur d'envoi du token :", error);
     }
   };
 
@@ -62,7 +85,7 @@ const NotificationManager = () => {
   const handleDeepLink = (event) => {
     if (!event.url) return;
     
-    console.log('Deep link reçu:', event.url);
+    //console.log('Deep link reçu:', event.url);
     
     // Exemple: rouah://details/annonce/123
     const route = event.url.replace(/.*?:\/\//g, '');

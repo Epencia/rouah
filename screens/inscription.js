@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import {
   View,
   Text,
@@ -7,17 +7,19 @@ import {
   Image,
   StyleSheet,
   Alert,
-  SafeAreaView,
   StatusBar,
   ActivityIndicator,
   ScrollView,
   KeyboardAvoidingView,
-  Platform
+  Platform,
 } from 'react-native';
+import { SafeAreaView } from "react-native-safe-area-context";
 import { MaterialIcons } from '@expo/vector-icons';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { GlobalContext } from '../global/GlobalState';
+import CountryPicker from 'react-native-country-picker-modal';
 
 export default function Inscription({ navigation }) {
   const [NomPrenom, setNomPrenom] = useState('');
@@ -27,23 +29,21 @@ export default function Inscription({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
+  const [user, setUser] = useContext(GlobalContext);
+  const [countryCode, setCountryCode] = useState('CI'); // Côte d'Ivoire ISO code
+  const [countryCallingCode, setCountryCallingCode] = useState('+225'); // Côte d'Ivoire calling code
+  const [countryPickerVisible, setCountryPickerVisible] = useState(false);
 
   const registerForPushNotificationsAsync = async () => {
     try {
-      console.log('Vérification si l\'appareil est physique...');
       if (!Device.isDevice) {
-        console.log('Échec : appareil non physique (émulateur détecté)');
+        //console.log('Échec : appareil non physique (émulateur détecté)');
         Alert.alert('Avertissement', 'Les notifications push ne sont pas disponibles sur un émulateur. Veuillez tester sur un appareil physique.');
         return null;
       }
-
-      console.log('Vérification des permissions de notification...');
       const { status: existingStatus } = await Notifications.getPermissionsAsync();
-      console.log('Statut actuel des permissions :', existingStatus);
       let finalStatus = existingStatus;
-
       if (existingStatus !== 'granted') {
-        console.log('Demande de permissions de notification...');
         const { status } = await Notifications.requestPermissionsAsync({
           ios: {
             allowAlert: true,
@@ -52,31 +52,23 @@ export default function Inscription({ navigation }) {
           },
         });
         finalStatus = status;
-        console.log('Nouveau statut des permissions :', finalStatus);
       }
-
       if (finalStatus !== 'granted') {
-        console.log('Échec : permissions de notification refusées');
         Alert.alert('Avertissement', 'Les notifications push sont désactivées. Activez-les dans les paramètres de votre appareil pour recevoir des notifications.');
         return null;
       }
-
-      console.log('Récupération du token push Expo...');
       const tokenData = await Notifications.getExpoPushTokenAsync({
-        projectId: '8b74f350-58f4-4c6c-b308-738040a6846d', // Remplace par ton projectId depuis app.json
+        projectId: '8b74f350-58f4-4c6c-b308-738040a6846d',
       });
       const token = tokenData.data;
-      console.log('Token de notification généré :', token);
       return token;
     } catch (error) {
-      console.error('Erreur lors de la récupération du token :', error);
       Alert.alert('Erreur', `Impossible de récupérer le token de notification : ${error.message}`);
       return null;
     }
   };
 
   const ValidationInscription = async () => {
-    // Validation des champs vides
     if (!username || !telephone || !password || !NomPrenom) {
       setErrors({
         username: !username ? "Le champ Nom d'utilisateur est obligatoire" : "",
@@ -86,8 +78,6 @@ export default function Inscription({ navigation }) {
       });
       return;
     }
-
-    // Validation format username
     if (!/^[a-zA-Z0-9]{4,}$/.test(username)) {
       setErrors({
         ...errors,
@@ -95,8 +85,6 @@ export default function Inscription({ navigation }) {
       });
       return;
     }
-
-    // Validation format mot de passe
     if (!/^\d{6}$/.test(password)) {
       setErrors({
         ...errors,
@@ -105,25 +93,16 @@ export default function Inscription({ navigation }) {
       return;
     }
 
-    // Validation format téléphone
-    if (!/^\d{10}$/.test(telephone)) {
+      if (!/^[a-zA-Z0-9]{6,}$/.test(telephone)) {
       setErrors({
         ...errors,
-        telephone: "Le numéro de téléphone doit contenir 10 chiffres"
+        telephone: "Le numéro de téléphone doit contenir au moins 6 chiffres"
       });
       return;
     }
-
     setIsSubmitting(true);
-
     try {
-      // Récupérer le token de notification
-      console.log('Tentative de récupération du push token...');
       const push_token = await registerForPushNotificationsAsync();
-      console.log('Push token obtenu :', push_token || 'null');
-
-      // Appel API pour l'inscription et enregistrement du token
-      console.log('Envoi des données d\'inscription :', { telephone, nom_prenom: NomPrenom, login: username, mdp: password, push_token });
       const response = await fetch('https://rouah.net/api/inscription.php', {
         method: 'POST',
         headers: {
@@ -131,49 +110,45 @@ export default function Inscription({ navigation }) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          telephone: telephone,
+          telephone: `${countryCallingCode}${telephone}`,
           nom_prenom: NomPrenom,
           login: username,
           mdp: password,
-          push_token: push_token || '' // Envoyer une chaîne vide si aucun token
+          push_token: push_token || ''
         })
       });
-
       let responseJson;
       try {
         responseJson = await response.json();
       } catch (jsonError) {
-        console.error('Erreur lors du parsing JSON de la réponse :', jsonError);
         Alert.alert('Erreur', 'Réponse invalide du serveur. Veuillez réessayer.');
         return;
       }
-
-      console.log('Réponse de l\'API inscription :', responseJson);
       Alert.alert('Message', responseJson.message || JSON.stringify(responseJson));
-
       if (responseJson.success) {
-        // Stocker le matricule
         const matricule = responseJson.matricule;
         if (matricule) {
           await AsyncStorage.setItem('matricule', matricule.toString());
-          console.log('Matricule enregistré dans AsyncStorage :', matricule);
-          Alert.alert('Succès', `Inscription réussie ! Votre matricule est : ${matricule}${push_token ? '' : ' (Aucun token de notification obtenu)'}`);
-        } else {
-          console.warn('Aucun matricule reçu dans la réponse');
-          Alert.alert('Avertissement', 'Inscription réussie, mais aucun identifiant utilisateur reçu.');
         }
-
-        // Réinitialiser le formulaire
+        const newUser = {
+          login: username,
+          telephone: `${countryCallingCode}${telephone}`,
+          nom_prenom: NomPrenom,
+          matricule: matricule || '',
+          push_token: push_token || '',
+        };
+        setUser(newUser);
+        navigation.navigate('BottomTabs');
         setUsername('');
         setPassword('');
         setTelephone('');
         setNomPrenom('');
         setErrors({});
+        Alert.alert('Succès', 'Inscription réussie ! Vous êtes maintenant connecté.');
       } else {
         Alert.alert('Erreur', responseJson.message || 'L\'inscription a échoué. Veuillez réessayer.');
       }
     } catch (error) {
-      console.error('Erreur lors de l\'inscription :', error);
       Alert.alert('Erreur', error.message || 'Une erreur est survenue lors de l\'inscription.');
     } finally {
       setIsSubmitting(false);
@@ -193,15 +168,12 @@ export default function Inscription({ navigation }) {
         >
           <View style={styles.inner}>
             <Text style={styles.title}>Rouah</Text>
-
             <Image
               source={require('../assets/logo-original.png')}
               style={styles.logo}
               resizeMode="contain"
             />
-
             <Text style={styles.message}>Espace d'inscription</Text>
-
             {/* Champ Nom & Prénoms */}
             <View style={styles.inputContainer}>
               <Text style={[styles.label, { color: errors.NomPrenom ? 'red' : '#555' }]}>
@@ -216,27 +188,57 @@ export default function Inscription({ navigation }) {
               />
               {errors.NomPrenom && <Text style={styles.errorText}>{errors.NomPrenom}</Text>}
             </View>
-
-            {/* Champ Téléphone */}
+            {/* Champ Téléphone avec sélecteur de pays */}
             <View style={styles.inputContainer}>
               <Text style={[styles.label, { color: errors.telephone ? 'red' : '#555' }]}>
                 Téléphone
               </Text>
-              <TextInput
-                style={[styles.input, { borderColor: errors.telephone ? 'red' : '#ccc' }]}
-                value={telephone}
-                onChangeText={(text) => {
-                  const numericText = text.replace(/[^0-9]/g, '').slice(0, 10);
-                  setTelephone(numericText);
-                  setErrors({ ...errors, telephone: '' });
-                }}
-                keyboardType="phone-pad"
-                maxLength={10}
-                returnKeyType="next"
-              />
+              <View style={styles.phoneInputContainer}>
+                <TouchableOpacity
+                  style={styles.countryPickerButton}
+                  onPress={() => setCountryPickerVisible(true)}
+                >
+                  <CountryPicker
+                    withFlag
+                    withCallingCode
+                    withFilter
+                    withModal
+                    countryCode={countryCode}
+                    onSelect={(country) => {
+                      setCountryCode(country.cca2);
+                      setCountryCallingCode(`+${country.callingCode[0]}`);
+                      setCountryPickerVisible(false);
+                    }}
+                    visible={countryPickerVisible}
+                    onClose={() => setCountryPickerVisible(false)}
+                    containerButtonStyle={styles.countryPicker}
+                    translation="fra" // Set language to French
+                    filterProps={{
+                      placeholder: 'Rechercher un pays...', // French placeholder for search
+                    }}
+                    theme={{
+                      backgroundColor: '#fff',
+                      primaryColor: '#fa4447',
+                      primaryColorVariant: '#ccc',
+                      onBackgroundTextColor: '#555',
+                    }}
+                  />
+                  <Text style={styles.countryCodeText}>{countryCallingCode}</Text>
+                </TouchableOpacity>
+                <TextInput
+                  style={[styles.phoneInput, { borderColor: errors.telephone ? 'red' : '#ccc' }]}
+                  value={telephone}
+                  onChangeText={(text) => {
+                    const numericText = text.replace(/[^0-9]/g, '');
+                    setTelephone(numericText);
+                    setErrors({ ...errors, telephone: '' });
+                  }}
+                  keyboardType="phone-pad"
+                  returnKeyType="next"
+                />
+              </View>
               {errors.telephone && <Text style={styles.errorText}>{errors.telephone}</Text>}
             </View>
-
             {/* Champ Utilisateur */}
             <View style={styles.inputContainer}>
               <Text style={[styles.label, { color: errors.username ? 'red' : '#555' }]}>
@@ -254,7 +256,6 @@ export default function Inscription({ navigation }) {
               />
               {errors.username && <Text style={styles.errorText}>{errors.username}</Text>}
             </View>
-
             {/* Champ Mot de passe */}
             <View style={styles.inputContainer}>
               <Text style={[styles.label, { color: errors.password ? 'red' : '#555' }]}>
@@ -285,21 +286,17 @@ export default function Inscription({ navigation }) {
               </TouchableOpacity>
               {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
             </View>
-
             {isSubmitting && <ActivityIndicator size="large" color="#fa4447" />}
-
-            <TouchableOpacity 
-              style={styles.btn} 
+            <TouchableOpacity
+              style={styles.btn}
               onPress={ValidationInscription}
               disabled={isSubmitting}
             >
               <Text style={styles.buttonText}>S'inscrire</Text>
             </TouchableOpacity>
-
             <TouchableOpacity onPress={() => navigation.navigate('Connexion')}>
               <Text style={styles.link}>Se connecter ?</Text>
             </TouchableOpacity>
-
             <TouchableOpacity onPress={() => navigation.navigate('Bienvenue')}>
               <Text style={styles.link}>Retour</Text>
             </TouchableOpacity>
@@ -369,6 +366,34 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     zIndex: 0,
   },
+  phoneInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+  },
+  countryPickerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    marginRight: 10,
+  },
+  countryPicker: {
+    padding: 0,
+  },
+  countryCodeText: {
+    fontSize: 16,
+    color: '#555',
+  },
+  phoneInput: {
+    flex: 1,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+  },
   errorText: {
     color: 'red',
     marginTop: 4,
@@ -390,7 +415,7 @@ const styles = StyleSheet.create({
     color: '#403b3b',
     marginBottom: 15,
     textAlign: 'center',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
   },
   mdpIconContainer: {
     position: 'absolute',

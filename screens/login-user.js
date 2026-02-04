@@ -153,7 +153,7 @@ export default function LoginUser({navigation}) {
               <Text style={styles.buttonText}>Se connecter</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => Linking.openURL('#')}>
+            <TouchableOpacity onPress={() => navigation.navigate('Mot de passe')}>
               <Text style={styles.link}>Mot de passe oublié ?</Text>
             </TouchableOpacity>
 

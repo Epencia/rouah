@@ -12,16 +12,16 @@ import {
   Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Video } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { GlobalContext } from '../global/GlobalState';
-import { Picker } from '@react-native-picker/picker';
+import CountryPicker from 'react-native-country-picker-modal';
 
-export default function EditionAnnonce({ navigation }) {
+
+export default function EditionAnnonce({navigation}) {
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
   const [quantite, setQuantite] = useState('');
+  const [telephone, setTelephone] = useState('');
   const [categorie, setCategorie] = useState('Publicité');
   const [media, setMedia] = useState(null);
   const [type, setType] = useState('');
@@ -30,15 +30,19 @@ export default function EditionAnnonce({ navigation }) {
   const [selectedMediaExtension, setSelectedMediaExtension] = useState('');
   const [albumImages, setAlbumImages] = useState([null, null, null]); // 3 images album
   const [user] = useContext(GlobalContext);
-  const videoRef = useRef(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+const [countryCode, setCountryCode] = useState('CI'); // Côte d’Ivoire par défaut
+const [countryCallingCode, setCountryCallingCode] = useState('+225');
+const [countryPickerVisible, setCountryPickerVisible] = useState(false);
+
 
   const MAX_FILE_SIZE = 15 * 1024 * 1024;
 
   // Media principal
   const pickMedia = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images', 'videos'],
+      mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 0.5,
@@ -55,16 +59,7 @@ export default function EditionAnnonce({ navigation }) {
       }
 
       let mediaType = asset.mimeType || '';
-      if (asset.type === 'video' && !mediaType) {
-        const videoTypes = {
-          mp4: 'video/mp4',
-          mov: 'video/quicktime',
-          avi: 'video/x-msvideo',
-          mkv: 'video/x-matroska',
-          webm: 'video/webm',
-        };
-        mediaType = videoTypes[extension] || `video/${extension}`;
-      } else if (asset.type === 'image' && !mediaType) {
+       if (asset.type === 'image' && !mediaType) {
         mediaType = `image/${extension}`;
       }
 
@@ -106,57 +101,6 @@ export default function EditionAnnonce({ navigation }) {
     }
   };
 
-  const takeVideo = async () => {
-    if (Platform.OS === 'web') {
-      Alert.alert('Info', "La capture vidéo n'est pas supportée sur le web");
-      return;
-    }
-
-    try {
-      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permissionResult.granted) {
-        Alert.alert('Permissions requises', "L'accès à la caméra et au microphone est nécessaire pour enregistrer une vidéo.");
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: 'videos',
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.5,
-        videoMaxDuration: 90,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-        const fileSizeMB = fileInfo.size / (1024 * 1024);
-        if (fileSizeMB > 15) {
-          Alert.alert('Fichier trop volumineux', `La vidéo (${fileSizeMB.toFixed(1)} MB) dépasse la limite de 15 MB.`);
-          return;
-        }
-
-        const extension = asset.uri.split('.').pop().toLowerCase();
-        const videoTypes = {
-          mp4: 'video/mp4',
-          mov: 'video/quicktime',
-          avi: 'video/x-msvideo',
-          mkv: 'video/x-matroska',
-          webm: 'video/webm',
-          '3gp': 'video/3gpp',
-          m4v: 'video/x-m4v',
-        };
-        const mediaType = videoTypes[extension] || `video/${extension}`;
-
-        setMedia(asset.uri);
-        setType(mediaType);
-        setSelectedMedia(result);
-        setSelectedMediaExtension(mediaType);
-      }
-    } catch (error) {
-      Alert.alert('Erreur', "Une erreur est survenue lors de l'enregistrement de la vidéo.");
-    }
-  };
 
   const removeMedia = () => {
     setMedia(null);
@@ -169,20 +113,7 @@ export default function EditionAnnonce({ navigation }) {
     if (!media) return null;
     if (type.startsWith('image/')) {
       return <Image source={{ uri: media }} style={styles.selectedMedia} resizeMode="cover" />;
-    } else if (type.startsWith('video/')) {
-      return (
-        <View style={styles.videoPreview}>
-          <Video
-            ref={videoRef}
-            source={{ uri: media }}
-            style={styles.selectedMedia}
-            useNativeControls
-            resizeMode="contain"
-            isLooping
-          />
-        </View>
-      );
-    }
+    } 
     return null;
   };
 
@@ -309,7 +240,7 @@ const saveAlbumImages = async (codeAnnonce) => {
 
 
   const confirmPublication = () => {
-    if (!titre.trim() || !description.trim() || !quantite || isNaN(quantite) || parseInt(quantite) < 5) {
+    if (!titre.trim() || !description.trim() || !telephone.trim() || !quantite || isNaN(quantite) || parseInt(quantite) < 5) {
       Alert.alert('Erreur', 'Veuillez remplir correctement tous les champs.');
       return;
     }
@@ -330,6 +261,7 @@ const saveAlbumImages = async (codeAnnonce) => {
       formData.append('description', description);
       formData.append('quantite', quantite);
       formData.append('categorie', categorie);
+      formData.append('telephone', `${countryCallingCode}${telephone}`);
       formData.append('type', selectedMediaExtension);
 
       if (selectedMedia?.assets?.[0]) {
@@ -360,6 +292,7 @@ const saveAlbumImages = async (codeAnnonce) => {
               setTitre('');
               setDescription('');
               setQuantite('');
+              setTelephone('');
               setCategorie('Publicité');
               setMedia(null);
               setType('');
@@ -418,20 +351,53 @@ const saveAlbumImages = async (codeAnnonce) => {
             />
           </View>
 
+
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Catégorie *</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={categorie}
-                onValueChange={(itemValue) => setCategorie(itemValue)}
-                style={styles.picker}
-                dropdownIconColor="#414d63"
-              >
-                <Picker.Item label="Publicité" value="Publicité" />
-                <Picker.Item label="Avis de recherche" value="Avis de recherche" />
-              </Picker>
-            </View>
-          </View>
+  <Text style={styles.label}>Téléphone *</Text>
+  <View style={styles.phoneInputContainer}>
+    <TouchableOpacity
+      style={styles.countryPickerButton}
+      onPress={() => setCountryPickerVisible(true)}
+    >
+      <CountryPicker
+        withFlag
+        withCallingCode
+        withFilter
+        withModal
+        countryCode={countryCode}
+        onSelect={(country) => {
+          setCountryCode(country.cca2);
+          setCountryCallingCode(`+${country.callingCode[0]}`);
+          setCountryPickerVisible(false);
+        }}
+        visible={countryPickerVisible}
+        onClose={() => setCountryPickerVisible(false)}
+        containerButtonStyle={styles.countryPicker}
+        translation="fra"
+        theme={{
+          backgroundColor: '#fff',
+          primaryColor: '#fa4447',
+          onBackgroundTextColor: '#555',
+        }}
+      />
+      <Text style={styles.countryCodeText}>{countryCallingCode}</Text>
+    </TouchableOpacity>
+
+    <TextInput
+      style={styles.phoneInput}
+      placeholder="Numéro de téléphone"
+      value={telephone}
+      onChangeText={(text) => {
+        const numericText = text.replace(/[^0-9]/g, '');
+        setTelephone(numericText);
+      }}
+      keyboardType="phone-pad"
+    />
+  </View>
+</View>
+
+
+         
 
           {/* ✅ Boutons Photo 1,2,3 */}
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -496,10 +462,6 @@ const saveAlbumImages = async (codeAnnonce) => {
               <MaterialCommunityIcons name="camera" size={20} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.buttonText}>Photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.iconButton} onPress={takeVideo}>
-              <MaterialCommunityIcons name="video" size={20} color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.buttonText}>Vidéo</Text>
-            </TouchableOpacity>
           </View>
 
           {getMediaPreview() && (
@@ -533,15 +495,15 @@ const saveAlbumImages = async (codeAnnonce) => {
               <Text style={modalStyles.modalLabel}>Audience :</Text>
               <Text style={modalStyles.modalText}>{quantite}</Text>
 
+              <Text style={modalStyles.modalLabel}>Téléphone :</Text>
+              <Text style={modalStyles.modalText}>{telephone}</Text>
+
               <Text style={modalStyles.modalLabel}>Catégorie :</Text>
-              <Text style={modalStyles.modalText}>{categorie}</Text>
+              <Text style={modalStyles.modalText}>Publicité</Text>
 
               {media && (
                 <View style={{ marginTop: 10 }}>
                   {type.startsWith('image/') && <Image source={{ uri: media }} style={{ width: '100%', height: 200, borderRadius: 8 }} />}
-                  {type.startsWith('video/') && (
-                    <Video ref={videoRef} source={{ uri: media }} style={{ width: '100%', height: 200, borderRadius: 8 }} useNativeControls resizeMode="contain" isLooping />
-                  )}
                 </View>
               )}
             </ScrollView>
@@ -591,7 +553,6 @@ const styles = StyleSheet.create({
   buttonText: { color: '#fff', textAlign: 'center', fontWeight: '500' },
   previewContainer: { position: 'relative', marginTop: 10 },
   selectedMedia: { width: '100%', height: 200, borderRadius: 8 },
-  videoPreview: { width: '100%', height: 200, borderRadius: 8, overflow: 'hidden' },
   removeButton: { position: 'absolute', top: 10, right: 10, backgroundColor: '#ff0000', borderRadius: 20, padding: 4 },
   iconButton: {
     backgroundColor: '#414d63',
@@ -613,6 +574,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  // telephone
+  phoneInputContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  width: '100%',
+},
+
+countryPickerButton: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  padding: 7,
+  borderWidth: 1,
+  borderColor: '#ccc',
+  borderRadius: 8,
+  marginRight: 10,
+},
+countryPicker: {
+  padding: 0,
+},
+countryCodeText: {
+  fontSize: 16,
+  color: '#555',
+},
+phoneInput: {
+  flex: 1,
+  padding: 12,
+  borderWidth: 1,
+  borderColor: '#ccc',
+  borderRadius: 8,
+},
 });
 
 const modalStyles = StyleSheet.create({
