@@ -3,45 +3,54 @@ import { View, Text, FlatList, StyleSheet, Image, TouchableOpacity, TextInput } 
 import { MaterialCommunityIcons ,Feather} from '@expo/vector-icons';
 
 const data = [
-    {
-    id: '1',
-    image: 'file-search-outline', // RECHARGEMENT SOLDE
-    titre: "REGISTRE DE CONTROLE",
-    libelle: "Consulter les diplomes",
-    src : 'Gestion du registre'
-  },
-  {
-    id: '2',
-    image: 'account-outline', // MON PROFIL
-    titre: 'MON PROFIL',
-    libelle: 'Voir votre profil utilisateur',
-    src : 'Profil'
-  },
-  {
-    id: '3',
-    image: 'key-outline', // CODE MARCHAND
-    titre: "CODE UNIQUE",
-    libelle: "Voir votre code unique",
-    src : 'Code unique'
-  },
-   {
-    id: '4',
-    image: 'credit-card-outline', // TEST
-    titre: "VERSETS BIBLIQUES",
-    libelle: "Gérer les versets bibliques",
-    src : "Gestion des versets"
-  },
-    {
-    id: '5',
-    image: 'account-outline', // TEST
-    titre: "GESTION DES UTILISATEURS",
-    libelle: "Gérer les utilisateurs",
-    src : "Gestion des utilisateurs"
-  },
+{
+  id: '1',
+  image: 'file-document-edit-outline',
+  titre: "DEMANDE DE STAGE",
+  libelle: "Soumettre et suivre votre demande de stage en ligne",
+  src: "Ma demande de stage"
+},
+{
+  id: '2',
+  image: 'book-open-variant-outline',
+  titre: "GUIDE PRATIQUE",
+  libelle: "Consulter les instructions et conseils pour vos démarches",
+  src: "Informations"
+},
+{
+  id: '3',
+  image: 'file-search-outline',
+  titre: "REGISTRE DE CONTRÔLE",
+  libelle: "Vérifier les informations relatives aux formations et stages",
+  src: "Registre de controle",
+},
+{
+  id: '5',
+  image: 'key-outline',
+  titre: "RETROUVER MON CODE",
+  libelle: "Récupérer votre code personnel d'abonnement",
+  src: "Retrouver mon code",
+},
+{
+  id: '6',
+  image: 'book-outline',
+  titre: "CGU & CONFIDENTIALITÉ",
+  libelle: "Consulter les conditions d'utilisation et la politique de confidentialité",
+  src: 'Clauses',
+},
+{
+  id: '7',
+  image: 'lock-outline',
+  titre: "CONNEXION",
+  libelle: "Accéder à votre espace personnel sécurisé",
+  src: 'Connexion',
+},
 ];
 
 
-export default function MenuPrincipal({navigation}) {
+
+
+export default function Manuel({navigation}) {
 
   const [searchText, setSearchText] = useState('');
 

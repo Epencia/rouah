@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   TextInput,
   Alert,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from "react-native-safe-area-context";
 import YoutubePlayer from 'react-native-youtube-iframe';
@@ -15,34 +16,134 @@ import HTML from 'react-native-render-html';
 import { useWindowDimensions } from 'react-native';
 import { MaterialCommunityIcons, Ionicons, Feather } from '@expo/vector-icons';
 
-const SkeletonCard = () => (
-  <View style={styles.listItem}>
-    <View style={{ height: 200, backgroundColor: '#eee', borderRadius: 8 }} />
-    <View style={{ height: 20, backgroundColor: '#ddd', marginVertical: 10, borderRadius: 4 }} />
-    <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center' }}>
-      <View style={{ height: 20, width: 150, backgroundColor: '#ddd', borderRadius: 4 }} />
+// SkeletonCard amélioré avec animation
+const SkeletonCard = () => {
+  const animatedValue = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+
+    return () => animation.stop();
+  }, []);
+
+  const opacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.7],
+  });
+
+  const SkeletonItem = ({ width, height, style = {} }) => (
+    <Animated.View
+      style={[
+        {
+          width,
+          height,
+          backgroundColor: '#E0E0E0',
+          borderRadius: 4,
+          marginVertical: 4,
+          opacity,
+        },
+        style,
+      ]}
+    />
+  );
+
+  return (
+    <View style={styles.listItem}>
+      {/* Skeleton pour la vidéo */}
+      <SkeletonItem width="100%" height={200} style={{ borderRadius: 8 }} />
+      
+      {/* Skeleton pour le titre */}
+      <SkeletonItem width="80%" height={24} style={{ marginVertical: 12 }} />
+      
+      {/* Skeleton pour le bouton toggle */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginVertical: 8 }}>
+        <SkeletonItem width={20} height={20} style={{ marginRight: 8 }} />
+        <SkeletonItem width={150} height={20} />
+      </View>
+      
+      {/* Skeleton pour la description (visible par défaut) */}
+      <View style={{ marginTop: 10 }}>
+        <SkeletonItem width="100%" height={16} />
+        <SkeletonItem width="95%" height={16} />
+        <SkeletonItem width="90%" height={16} />
+        <SkeletonItem width="85%" height={16} />
+      </View>
     </View>
-    <View style={{ height: 100, backgroundColor: '#eee', marginTop: 10, borderRadius: 4 }} />
-  </View>
-);
+  );
+};
+
+// Skeleton pour la barre de recherche
+const SearchBarSkeleton = () => {
+  const animatedValue = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(animatedValue, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(animatedValue, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    animation.start();
+
+    return () => animation.stop();
+  }, []);
+
+  const opacity = animatedValue.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.3, 0.7],
+  });
+
+  return (
+    <Animated.View style={[styles.searchBarSkeleton, { opacity }]}>
+      <View style={styles.searchIconSkeleton} />
+      <View style={styles.searchInputSkeleton} />
+    </Animated.View>
+  );
+};
 
 export default function Informations({ navigation }) {
   const { width: windowWidth } = useWindowDimensions();
   const ignoredDomTags = ['o:p', 'v:shape', 'v:shapetype', 'u1:p', 'font', 'color'];
+  
   // State variables
   const [isLoading, setIsLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [data, setData] = useState([]);
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [descriptionVisible, setDescriptionVisible] = useState({});
+
   // Refresh handler
   const handleRefresh = async () => {
     setRefreshing(true);
     await getListeInformations();
     setRefreshing(false);
   };
+
   // YouTube player state change handler
   const onStateChange = useCallback((state) => {
     if (state === 'ended') {
@@ -50,6 +151,7 @@ export default function Informations({ navigation }) {
       Alert.alert('La lecture de la vidéo est terminée !');
     }
   }, []);
+
   // Toggle description visibility
   const toggleDescription = (itemId) => {
     setDescriptionVisible((prevState) => ({
@@ -57,6 +159,7 @@ export default function Informations({ navigation }) {
       [itemId]: !prevState[itemId],
     }));
   };
+
   // Fetch data
   const getListeInformations = async () => {
     setIsLoading(true);
@@ -76,16 +179,19 @@ export default function Informations({ navigation }) {
       setError(error);
     } finally {
       setIsLoading(false);
+      setInitialLoading(false);
     }
   };
+
   // Set navigation title and fetch data on mount
   useEffect(() => {
-    navigation.setOptions({ title: 'Informations' });
+    navigation.setOptions({ title: 'Guide pratique' });
     const delay = 60000; // 1 minute
     getListeInformations();
     const intervalId = setInterval(getListeInformations, delay);
     return () => clearInterval(intervalId);
   }, []);
+
   // Search functionality
   const searchItems = useMemo(() => {
     return () => {
@@ -95,18 +201,22 @@ export default function Informations({ navigation }) {
       return filteredData;
     };
   }, [data, searchTerm]);
+
   // Loading state with skeleton
-  if (isLoading) {
+  if (initialLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
+        <SearchBarSkeleton />
         <FlatList
           data={[1, 2, 3, 4, 5]}
           keyExtractor={(item) => item.toString()}
           renderItem={() => <SkeletonCard />}
+          showsVerticalScrollIndicator={false}
         />
       </SafeAreaView>
     );
   }
+
   // Error state
   if (error) {
     return (
@@ -126,79 +236,101 @@ export default function Informations({ navigation }) {
       </View>
     );
   }
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {data.length > 0 ? (
         <View style={styles.searchBar}>
           <Feather name="search" size={24} color="gray" style={styles.searchIcon} />
           <TextInput
             style={styles.input}
-            placeholder="Rechercher..."
+            placeholder="Rechercher une question..."
+            placeholderTextColor="#999"
             onChangeText={(text) => setSearchTerm(text)}
             value={searchTerm}
           />
+          {searchTerm !== '' && (
+            <TouchableOpacity onPress={() => setSearchTerm('')} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color="gray" />
+            </TouchableOpacity>
+          )}
         </View>
       ) : (
-        <View
-          style={{
-            marginTop: 25,
-            marginRight: 15,
-            marginLeft: 15,
-            elevation: 5,
-            backgroundColor: 'white',
-            borderRadius: 6,
-            marginBottom: 5,
-          }}
-        >
-          <Text
-            style={{
-              marginTop: 10,
-              marginRight: 15,
-              marginLeft: 15,
-              marginBottom: 15,
-              color: '#888',
-              textAlign: 'center',
-            }}
-          >
+        <View style={styles.emptyContainer}>
+          <MaterialCommunityIcons name="information-outline" size={60} color="#ccc" />
+          <Text style={styles.emptyText}>
             Aucune donnée disponible
           </Text>
         </View>
       )}
+      
       <FlatList
         data={searchTerm ? searchItems() : data}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
           <View style={styles.listItem}>
-            {item.video && item.video.trim() !== '' ? (
-              <YoutubePlayer
-                height={200}
-                videoId={item.video}
-                onChangeState={onStateChange}
-              />
-            ) : null}
-            <Text style={styles.NomPrenom}>{item.question}</Text>
-            <TouchableOpacity onPress={() => toggleDescription(item.id)}>
-              <View style={styles.toggleButton}>
-                <Ionicons
-                  name={descriptionVisible[item.id] ? 'chevron-up' : 'chevron-down'}
-                  size={20}
-                  color="#000"
+            {item.video && item.video.trim() !== '' && (
+              <View style={styles.videoContainer}>
+                <YoutubePlayer
+                  height={200}
+                  videoId={item.video}
+                  onChangeState={onStateChange}
                 />
-                {descriptionVisible[item.id] ? (
-                  <Text style={styles.toggleButtonText}>Masquer la réponse</Text>
-                ) : (
-                  <Text style={styles.toggleButtonText}>Afficher la réponse</Text>
-                )}
               </View>
+            )}
+            
+            <Text style={styles.NomPrenom}>{item.question}</Text>
+            
+            <TouchableOpacity onPress={() => toggleDescription(item.id)} style={styles.toggleButton}>
+              <Ionicons
+                name={descriptionVisible[item.id] ? 'chevron-up-circle' : 'chevron-down-circle'}
+                size={24}
+                color="#414d63"
+              />
+              <Text style={styles.toggleButtonText}>
+                {descriptionVisible[item.id] ? 'Masquer la réponse' : 'Afficher la réponse'}
+              </Text>
             </TouchableOpacity>
+            
             {descriptionVisible[item.id] && (
-              <HTML source={{ html: item.reponse }} contentWidth={windowWidth} ignoredDomTags={ignoredDomTags} />
+              <View style={styles.htmlContainer}>
+                <HTML 
+                  source={{ html: item.reponse }} 
+                  contentWidth={windowWidth} 
+                  ignoredDomTags={ignoredDomTags}
+                  tagsStyles={{
+                    p: { marginVertical: 8, lineHeight: 20 },
+                    strong: { fontWeight: 'bold' },
+                    em: { fontStyle: 'italic' },
+                  }}
+                />
+              </View>
             )}
           </View>
         )}
         refreshing={refreshing}
         onRefresh={handleRefresh}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          !isLoading && searchTerm !== '' ? (
+            <View style={styles.emptyContainer}>
+              <MaterialCommunityIcons name="file-search-outline" size={60} color="#ccc" />
+              <Text style={styles.emptyText}>
+                Aucun résultat pour "{searchTerm}"
+              </Text>
+              <TouchableOpacity onPress={() => setSearchTerm('')} style={styles.resetButton}>
+                <Text style={styles.resetButtonText}>Voir toutes les questions</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null
+        }
       />
+      
+      {isLoading && !refreshing && (
+        <View style={styles.loadingMore}>
+          <ActivityIndicator size="small" color="#414d63" />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -210,45 +342,122 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   listItem: {
-    marginBottom: 10,
-    borderRadius: 8,
+    marginBottom: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#ccc',
-    padding: 10,
+    borderColor: '#e0e0e0',
+    padding: 16,
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  videoContainer: {
+    marginBottom: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   NomPrenom: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#000',
-    marginVertical: 10,
+    color: '#414d63',
+    marginVertical: 12,
   },
   toggleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginVertical: 8,
   },
   toggleButtonText: {
     fontSize: 14,
-    marginLeft: 5,
-    color: '#000',
+    marginLeft: 8,
+    color: '#414d63',
+    fontWeight: '500',
+  },
+  htmlContainer: {
+    marginTop: 12,
+    padding: 8,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: -20,
     marginBottom: 16,
     backgroundColor: 'white',
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'gray',
+    borderColor: '#e0e0e0',
+    paddingHorizontal: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchBarSkeleton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+    height: 56,
+    paddingHorizontal: 12,
   },
   searchIcon: {
     padding: 8,
   },
-  input: {
+  searchIconSkeleton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+    marginRight: 8,
+  },
+  searchInputSkeleton: {
     flex: 1,
     height: 40,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 8,
+  },
+  input: {
+    flex: 1,
+    height: 48,
+    fontSize: 16,
+    color: '#333',
+  },
+  clearButton: {
+    padding: 8,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyText: {
+    color: '#999',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  resetButton: {
+    padding: 12,
+  },
+  resetButtonText: {
+    color: '#414d63',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  loadingMore: {
+    paddingVertical: 20,
+    alignItems: 'center',
   },
   Card: {
     flex: 1,

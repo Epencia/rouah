@@ -19,6 +19,7 @@ import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants'; // IMPORT MANQUANT
 import * as Application from 'expo-application'; // IMPORT MANQUANT
+import Versions from './version';
 
 const { width, height } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -39,27 +40,38 @@ const scaleFont = (size) => {
 };
 
 const partners = [
-  { name: 'Annonces', src: "Annonces", icon: 'bullhorn' },
-  { name: 'Catalogues', src: "Chaines", icon: 'book' },
-  { name: 'Certificats', src: "Diplomes", icon: 'graduation-cap' },
-  { name: 'Comptoir', src: "Comptoir", icon: 'comments' },
-  { name: 'Outils', src: "Outils", icon: 'tools' },
-  { name: 'Partenaires', src: "Partenaires", icon: 'handshake' },
-  { name: 'Galeries', src: "Galeries", icon: 'images', isCenter: true },
+  { name: 'BTS',      src: 'Ecoles',      icon: 'user-graduate' },
+  { name: 'Licences',   src: 'Ecoles', icon: 'book' },
+  { name: 'Masters',    src: 'Ecoles',  icon: 'clipboard-list' },
+  { name: 'Certificats',    src: 'Certificats',  icon: 'graduation-cap' },
+  { name: 'Collèges',   src: 'Ecoles', icon: 'school' },
+  { name: 'Lycées',     src: 'Ecoles',   icon: 'chalkboard-teacher' },
+  { name: 'Concours',   src: 'Ecoles', icon: 'trophy', isCenter: true }
 ];
 
 const Bienvenue = ({ navigation }) => {
-  const [count, setCount] = useState(0);
-  const [countAvis, setCountAvis] = useState(0);
-  const [countArticle, setCountArticle] = useState(0);
-  const [countOutils, setCountOutils] = useState(0);
   const [currentMessage, setCurrentMessage] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const [versets, setVersets] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
   const [pushToken, setPushToken] = useState(null);
+
+  // debut modal version
+const [showUpdateModal, setShowUpdateModal] = useState(false);
+const [currentVersion] = useState('1.0.0'); // Définissez votre version actuelle
+
+const handleVersionCheck = (data) => {
+  if (data.needs_update) {
+    setShowUpdateModal(true);
+  }
+};
+
+useEffect(() => {
+  // Ouvre automatiquement le modal si une mise à jour est disponible
+  setShowUpdateModal(true);
+}, []);
+// Fin modal version
 
   // === NOTIFICATIONS PUSH ===
   const registerForPushNotificationsAsync = async () => {
@@ -132,27 +144,7 @@ const Bienvenue = ({ navigation }) => {
 
   useEffect(() => { registerForPushNotificationsAsync(); }, []);
 
-  // === COMPTEURS EN TEMPS RÉEL ===
-  useEffect(() => {
-    const fetchers = [
-      { setter: setCount, url: 'https://rouah.net/api/nombre-publicite.php' },
-      { setter: setCountAvis, url: 'https://rouah.net/api/nombre-avis-recherche.php' },
-      { setter: setCountArticle, url: 'https://rouah.net/api/nombre-article.php' },
-      { setter: setCountOutils, url: 'https://rouah.net/api/nombre-chaine.php' },
-    ];
-
-    fetchers.forEach(({ setter, url }) => {
-      const fetchData = () => {
-        fetch(url, { method: 'POST' })
-          .then(r => r.json())
-          .then(res => setter(typeof res === 'number' ? res : res?.count || 0))
-          .catch(() => {});
-      };
-      fetchData();
-      const id = setInterval(fetchData, 8000);
-      return () => clearInterval(id);
-    });
-  }, []);
+  
 
   // === VERSETS BIBLIQUES ===
   useEffect(() => {
@@ -225,6 +217,14 @@ useEffect(() => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+
+       {/* Modal de mise à jour */}
+    <Versions 
+      visible={showUpdateModal}
+      onClose={() => setShowUpdateModal(false)}
+      currentVersion={currentVersion}
+      onVersionCheck={handleVersionCheck}
+    />
       
       <View style={styles.header}>
         <Image 
@@ -273,7 +273,9 @@ useEffect(() => {
                 key={index}
                 style={styles.centerPartner}
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate(partner.src)}
+                onPress={() => navigation.navigate(partner.src, { 
+  categorie: partner.name
+})}
               >
                 <View style={[
                   styles.centerIcon,
@@ -303,9 +305,7 @@ useEffect(() => {
           const y = RADIUS * Math.sin(radians);
 
           // === DÉTERMINATION DU BADGE ===
-          let badgeCount = 0;
-          if (partner.name === 'Annonces') badgeCount = count;
-
+     
           return (
             <TouchableOpacity
               key={index}
@@ -317,7 +317,9 @@ useEffect(() => {
                 }
               ]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate(partner.src)}
+              onPress={() => navigation.navigate(partner.src, { 
+  categorie: partner.name
+})}
             >
               <View style={styles.outerIconContainer}>
                 <View style={[
@@ -331,21 +333,7 @@ useEffect(() => {
                     color="#414d63" 
                   />
                 </View>
-                {badgeCount > 0 && (
-                  <View style={[
-                    styles.badge,
-                    isSmallScreen && styles.badgeSmall,
-                    isLargeScreen && styles.badgeLarge
-                  ]}>
-                    <Text style={[
-                      styles.badgeText,
-                      isSmallScreen && styles.badgeTextSmall,
-                      isLargeScreen && styles.badgeTextLarge
-                    ]}>
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </Text>
-                  </View>
-                )}
+               
               </View>
               <Text style={[
                 styles.outerName,
@@ -370,14 +358,14 @@ useEffect(() => {
             isSmallScreen && styles.btnLoginSmall,
             isLargeScreen && styles.btnLoginLarge
           ]} 
-          onPress={() => navigation.navigate('Connexion')}
+          onPress={() => navigation.navigate('Menu')}
         >
           <Text style={[
             styles.btnLoginText,
             isSmallScreen && styles.btnLoginTextSmall,
             isLargeScreen && styles.btnLoginTextLarge
           ]}>
-            Connexion
+            Menu
           </Text>
         </TouchableOpacity>
         <TouchableOpacity 
@@ -386,14 +374,15 @@ useEffect(() => {
             isSmallScreen && styles.btnSignupSmall,
             isLargeScreen && styles.btnSignupLarge
           ]} 
-          onPress={() => navigation.navigate('Inscription')}
+          onPress={() => navigation.navigate('Stages')}
+          //onPress={() => navigation.navigate('Abonnement')}
         >
           <Text style={[
             styles.btnSignupText,
             isSmallScreen && styles.btnSignupTextSmall,
             isLargeScreen && styles.btnSignupTextLarge
           ]}>
-            Inscription
+            Stages
           </Text>
         </TouchableOpacity>
       </View>

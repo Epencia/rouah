@@ -3,11 +3,12 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { View, Text, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import Accueil from "../screens/accueil";
-import EditionAnnonce from "../screens/edition-annonce";
-import Annonces from "../screens/annonces";
-import MonCatalogueArticle from "../screens/edition-article";
-import Caisses from '../screens/caisses';
 import { GlobalContext } from '../global/GlobalState';
+import TableauBord from '../screens/gestion-tableau-bord';
+import GestionCours from '../screens/gestion-cours';
+import GestionAbonnement from '../screens/gestion-abonnement';
+import GestionMatiere from '../screens/gestion-matiere';
+import GestionNiveau from '../screens/gestion-niveau';
 
 const Tab = createBottomTabNavigator();
 
@@ -26,27 +27,7 @@ const CustomHeader = () => {
 
 export default function BottomTabs() {
 
-  const [nombreCommandes, setNombreCommandes] = useState(0);
   const [user] = useContext(GlobalContext);
-
-useEffect(() => {
-  const fetchCommandes = async () => {
-    try {
-      const response = await fetch(`https://rouah.net/api/nombre-commande.php?matricule=${user?.matricule}`);
-      const result = await response.json();
-        const affichage = result > 99 ? "99+" : result;
-      setNombreCommandes(affichage);
-  
-    } catch (error) {
-      console.log("Erreur chargement commandes", error);
-    }
-  };
-
-  const intervalId = setInterval(fetchCommandes, 1000);
-    return () => clearInterval(intervalId);
-}, []);
-
-
 
 
 
@@ -59,19 +40,7 @@ useEffect(() => {
         headerLeft: () => <CustomHeader />,
         headerRight: () => (
           <View style={{ flexDirection: 'row' }}>
-             <TouchableOpacity 
-  onPress={() => navigation.navigate('Commandes clients')}
-  style={styles.logoutButton2}
->
-  <View>
-    <Icon name="shopping-cart" size={26} color="#414d63" />
-    {nombreCommandes > 0 && (
-      <View style={styles.badgeContainer}>
-        <Text style={styles.badgeText}>{nombreCommandes}</Text>
-      </View>
-    )}
-  </View>
-</TouchableOpacity>
+            
 
             <TouchableOpacity 
               onPress={() => navigation.navigate('Menu principal')}
@@ -91,7 +60,7 @@ useEffect(() => {
     >
       <Tab.Screen
         name="Accueil"
-        component={Accueil}
+        component={TableauBord}
         options={{
           headerTitle: '',
           tabBarLabel: "Accueil",
@@ -102,43 +71,43 @@ useEffect(() => {
       />
 
       <Tab.Screen
-        name="Annonces"
-        component={Annonces}
+        name="Niveaux"
+        component={GestionNiveau}
         options={{
           headerTitle: '',
           tabBarIcon: ({ color }) => <Icon name="list-alt" color={color} size={26} />,
         }}
       />
 
-      <Tab.Screen
-        name="Publier"
-        component={EditionAnnonce}
-        options={({ navigation, route }) => ({
-          headerTitle: '',
-          tabBarLabel: '',
-          tabBarButton: (props) => {
-            const isFocused = navigation.isFocused();
-            return (
-              <TouchableOpacity
-                {...props}
-                style={styles.tabBarButtonContainer}
-                onPress={() => navigation.navigate('Publier')}
-              >
-                <View style={[
-                  styles.mainActionButton,
-                  isFocused && styles.mainActionButtonActive
-                ]}>
-                  <Icon name="add" size={30} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            )
-          },
-        })}
-      />
+<Tab.Screen
+  name="Publier"
+  component={GestionAbonnement}
+  options={({ route }) => ({
+    headerTitle: '',
+    tabBarLabel: '',
+    tabBarButton: (props) => {
+      const isFocused = props.accessibilityState?.selected;
+
+      return (
+        <TouchableOpacity
+          {...props}
+          style={styles.tabBarButtonContainer}
+        >
+          <View style={[
+            styles.mainActionButton,
+            isFocused && styles.mainActionButtonActive
+          ]}>
+            <Icon name="add" size={30} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      );
+    },
+  })}
+/>
 
       <Tab.Screen
-        name="Articles"
-        component={MonCatalogueArticle}
+        name="Matières"
+        component={GestionMatiere}
         options={{
           headerTitle: '',
           tabBarIcon: ({ color }) => <Icon name="collections" color={color} size={26} />,
@@ -146,8 +115,8 @@ useEffect(() => {
       />
 
       <Tab.Screen
-        name="Argent"
-        component={Caisses}
+        name="Cours"
+        component={GestionCours}
         options={{
           headerTitle: '',
           tabBarIcon: ({ color }) => <Icon name="account-balance" color={color} size={26} />,

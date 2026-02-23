@@ -17,36 +17,24 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
       "supportsTablet": true,
-      "infoPlist": {
-        "UIBackgroundModes": [
-          "location",
-          "fetch",
-          "remote-notification"
-        ],
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position en permanence pour détecter les situations d'urgence.",
-        "NSLocationWhenInUseUsageDescription": "Cette application a besoin d'accéder à votre position pour fournir les services de protection.",
-        "NSMotionUsageDescription": "Cette application a besoin d'accéder aux capteurs de mouvement pour détecter les chutes ou accidents.",
-        "NSAppTransportSecurity": {
-          "NSAllowsArbitraryLoads": true,
-          "NSExceptionDomains": {
-            "rouah.net": {
-              "NSIncludesSubdomains": true,
-              "NSTemporaryExceptionAllowsInsecureHTTPLoads": true,
-              "NSTemporaryExceptionMinimumTLSVersion": "TLSv1.1"
-            }
-          }
-        }
-      },
       "bundleIdentifier": "com.mandigoentreprise.rouah"
     },
+
     "android": {
       "icon": "./assets/icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "package": "com.mandigoentreprise.rouah",
+      "googleServicesFile": "./google-services.json",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -56,97 +44,64 @@
               "host": "*"
             }
           ],
-          "category": [
-            "BROWSABLE",
-            "DEFAULT"
-          ]
+          "category": ["BROWSABLE", "DEFAULT"]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "rouah.net",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.rouah.net",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
         }
-      ],
-      "edgeToEdgeEnabled": true,
-      "googleServicesFile": "./google-services.json",
-      "package": "com.mandigoentreprise.rouah",
-      "permissions": [
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "FOREGROUND_SERVICE",
-        "NOTIFICATIONS",
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "WAKE_LOCK",
-        "com.google.android.c2dm.permission.RECEIVE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.WAKE_LOCK",
-        "android.permission.FOREGROUND_SERVICE",
-        "android.permission.ACTIVITY_RECOGNITION",
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE"
       ]
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
     },
+
     "extra": {
       "eas": {
         "projectId": "8b74f350-58f4-4c6c-b308-738040a6846d"
       }
     },
+
     "owner": "serviteur01",
+
     "plugins": [
       "expo-notifications",
-      [
-        "expo-background-fetch",
-        {
-          "minimumInterval": 15,
-          "stopOnTerminate": false,
-          "startOnBoot": true
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Autoriser Rouah à accéder à votre position en arrière-plan pour la protection d'urgence.",
-          "isAndroidBackgroundLocationEnabled": true,
-          "isIosBackgroundLocationEnabled": true
-        }
-      ],
-      [
-        "expo-task-manager",
-        {
-          "android": {
-            "taskManager": {
-              "exported": true
-            }
-          }
-        }
-      ],
-      [
-        "expo-sensors",
-        {
-          "motionPermission": "Cette application a besoin d'accéder à vos capteurs de mouvement pour détecter les situations d'urgence."
-        }
-      ],
       "expo-secure-store",
       "expo-font",
       "expo-video",
       "expo-asset"
     ],
+
     "notification": {
       "icon": "./assets/favicon.png",
       "color": "#ffffff",
       "androidMode": "default",
-      "androidCollapsedTitle": "Alerte Rouah",
-      "iosDisplayInForeground": true
+      "androidCollapsedTitle": "Rouah"
     },
+
     "androidStatusBar": {
       "backgroundColor": "#000000",
       "barStyle": "light-content"
     },
+
     "updates": {
       "fallbackToCacheTimeout": 30000
     },
+
     "runtimeVersion": {
       "policy": "sdkVersion"
     }

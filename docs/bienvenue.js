@@ -7,7 +7,9 @@ import {
   Dimensions,
   Animated,
   Alert,
-  Image
+  Image,
+  Platform,
+  StatusBar
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome5';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,37 +17,48 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GlobalContext } from '../global/GlobalState';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants'; // IMPORT MANQUANT
+import * as Application from 'expo-application'; // IMPORT MANQUANT
 
-const { width } = Dimensions.get('window');
-const CIRCLE_DIAMETER = Math.min(width * 0.92, 420);
-const RADIUS = CIRCLE_DIAMETER * 0.42;
+const { width, height } = Dimensions.get('window');
+const isSmallScreen = width < 375;
+const isLargeScreen = width > 414;
+
+// Adaptatif : la taille du cercle varie selon l'écran
+const CIRCLE_DIAMETER = Math.min(
+  width * (isSmallScreen ? 0.85 : 0.92),
+  height * 0.55,
+  420
+);
+const RADIUS = CIRCLE_DIAMETER * (isSmallScreen ? 0.38 : 0.42);
+
+// Calcul des tailles de police adaptatives
+const scaleFont = (size) => {
+  const scaleFactor = isSmallScreen ? 0.9 : isLargeScreen ? 1.1 : 1;
+  return size * scaleFactor;
+};
 
 const partners = [
-  { name: 'Publicités', src: "Publicites", icon: 'bullhorn' },
-  { name: 'Avis de recherche', src: "Avis de recherche", icon: 'search' },
-  { name: 'Badge commercial', src: "Badge commercial", icon: 'id-card' },
-  { name: 'Catalogues', src: "Chaines", icon: 'book' },
-  { name: 'Je cherche', src: "Je cherche", icon: 'question-circle' },
-  { name: 'Partenaires', src: "Je cherche", icon: 'handshake' },
-  { name: 'Rouah Pro', src: "Rouah Pro", icon: 'home', isCenter: true },
+  { name: 'BTS',      src: 'Ecoles',      icon: 'user-graduate' },
+  { name: 'Licences',   src: 'Ecoles', icon: 'book' },
+  { name: 'Masters',    src: 'Ecoles',  icon: 'clipboard-list' },
+  { name: 'Certificats',    src: 'Certificats',  icon: 'graduation-cap' },
+  { name: 'Collèges',   src: 'Ecoles', icon: 'school' },
+  { name: 'Lycées',     src: 'Ecoles',   icon: 'chalkboard-teacher' },
+  { name: 'Concours',   src: 'Ecoles', icon: 'trophy', isCenter: true }
 ];
 
 const Bienvenue = ({ navigation }) => {
-  const [count, setCount] = useState(0);           // Publicités
-  const [countAvis, setCountAvis] = useState(0);   // Avis de recherche
-  const [countArticle, setCountArticle] = useState(0); // Catalogues
-  const [countOutils, setCountOutils] = useState(0);   // Badge commercial
-
   const [currentMessage, setCurrentMessage] = useState(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
-
   const [versets, setVersets] = useState([]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [containerDimensions, setContainerDimensions] = useState({ width: 0, height: 0 });
+  const [pushToken, setPushToken] = useState(null);
 
-  // === NOTIFICATIONS PUSH (100% conservé) ===
+  // === NOTIFICATIONS PUSH ===
   const registerForPushNotificationsAsync = async () => {
-    // Ton code original complet → inchangé
+    // Votre code original inchangé
     try {
       if (!Device.isDevice) {
         Alert.alert('Avertissement', 'Les notifications push ne sont pas disponibles sur un émulateur.');
@@ -67,15 +80,44 @@ const Bienvenue = ({ navigation }) => {
       const token = tokenData.data;
       let utilisateur_id = await AsyncStorage.getItem('userId') || 'anonymous';
 
+      // Récupérer les informations du device
+      const deviceInfo = {
+        Proprietaire: Device.deviceName || 'Inconnu',
+        Annee: Device.deviceYearClass || 'Inconnu',
+        Marque: Device.brand || 'Inconnu',
+        Modele: Device.modelName|| Device.modelId  || 'Inconnu',
+        VersionOS: Device.osVersion || 'Inconnu',
+        Plateforme: Device.platformApiLevel || 'Inconnu',
+        buildVersion: Application.nativeBuildVersion || '1',
+        Design: Device.designName || 'Inconnu',
+        UID: (await Device.getDeviceTypeAsync()) || 'Inconnu',
+        Date: new Date().toISOString(),
+        Application: Constants.expoConfig?.name || 'Rouah',
+      };
+
+       // Préparer les données pour l'envoi
+      const postData = {
+        utilisateur_id: utilisateur_id,
+        push_token: token,
+        device: JSON.stringify(deviceInfo)
+      };
+
+
       const response = await fetch('https://rouah.net/api/save-token.php', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ utilisateur_id, push_token: token }),
-      });
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(postData),      
+});
       const result = await response.json();
+
+      console.log('Token envoyé au serveur:', result);
 
       if (result.success || result.error === 'utilisateur ou token manquant') {
         await AsyncStorage.setItem('pushToken', token);
+        setPushToken(token); // ← Stocker dans l'état
       }
       return token;
     } catch (error) {
@@ -85,29 +127,9 @@ const Bienvenue = ({ navigation }) => {
 
   useEffect(() => { registerForPushNotificationsAsync(); }, []);
 
-  // === COMPTEURS EN TEMPS RÉEL (inchangé) ===
-  useEffect(() => {
-    const fetchers = [
-      { setter: setCount, url: 'https://rouah.net/api/nombre-publicite.php' },
-      { setter: setCountAvis, url: 'https://rouah.net/api/nombre-avis-recherche.php' },
-      { setter: setCountArticle, url: 'https://rouah.net/api/nombre-article.php' },
-      { setter: setCountOutils, url: 'https://rouah.net/api/nombre-chaine.php' },
-    ];
+  
 
-    fetchers.forEach(({ setter, url }) => {
-      const fetchData = () => {
-        fetch(url, { method: 'POST' })
-          .then(r => r.json())
-          .then(res => setter(typeof res === 'number' ? res : res?.count || 0))
-          .catch(() => {});
-      };
-      fetchData();
-      const id = setInterval(fetchData, 8000);
-      return () => clearInterval(id);
-    });
-  }, []);
-
-  // === VERSETS BIBLIQUES (100% conservé) ===
+  // === VERSETS BIBLIQUES ===
   useEffect(() => {
     const fetchVersets = async () => {
       try {
@@ -124,43 +146,101 @@ const Bienvenue = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
-    if (versets.length === 0) return;
+  if (versets.length === 0) return;
 
-    const showNextVerse = () => {
-      setCurrentMessage(versets[currentIndex]);
+  let isMounted = true;
 
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-          Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
-        ]),
-        Animated.delay(60000),
-        Animated.timing(fadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
-      ]).start(() => {
-        scaleAnim.setValue(0.5);
-        setCurrentIndex((prev) => (prev + 1) % versets.length);
-      });
-    };
+  const showNextVerse = (index = 0) => {
+    if (!isMounted) return;
 
-    showNextVerse();
-  }, [currentIndex, versets]);
+    setCurrentMessage(versets[index]);
+
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 5, tension: 100, useNativeDriver: true }),
+      ]),
+      Animated.delay(60000),
+      Animated.timing(fadeAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
+    ]).start(() => {
+      scaleAnim.setValue(0.5);
+      const nextIndex = (index + 1) % versets.length;
+      showNextVerse(nextIndex); // récursion contrôlée
+    });
+  };
+
+  showNextVerse(); // lancement initial
+
+  return () => { isMounted = false; };
+}, [versets]);
+
+// Ajoutez useEffect pour charger le token au démarrage
+useEffect(() => {
+  const loadToken = async () => {
+    try {
+      const savedToken = await AsyncStorage.getItem('pushToken');
+      if (savedToken) {
+        setPushToken(savedToken);
+      }
+    } catch (error) {
+      console.error('Erreur chargement token:', error);
+    }
+  };
+  loadToken();
+}, []);
+
+
+
+  // Fonction pour gérer le layout du conteneur
+  const handleContainerLayout = (event) => {
+    const { width, height } = event.nativeEvent.layout;
+    setContainerDimensions({ width, height });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      
       <View style={styles.header}>
-        <Image source={require('../assets/logo-original.png')} style={styles.logo} resizeMode="contain" />
-        <Text style={styles.title}>Rouah</Text>
+        <Image 
+          source={require('../assets/logo-original.png')} 
+          style={[
+            styles.logo,
+            isSmallScreen && styles.logoSmall,
+            isLargeScreen && styles.logoLarge
+          ]} 
+          resizeMode="contain" 
+        />
+        <Text style={[
+          styles.title,
+          isSmallScreen && styles.titleSmall,
+          isLargeScreen && styles.titleLarge
+        ]}>
+          Rouah
+        </Text>
 
-        <Animated.View style={{ opacity: fadeAnim, transform: [{ scale: scaleAnim }] }}>
+        <Animated.View 
+          style={[
+            styles.messageContainer,
+            { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
+          ]}
+        >
           {currentMessage && (
-            <Text style={styles.subtitle} numberOfLines={3}>
+            <Text style={[
+              styles.subtitle,
+              isSmallScreen && styles.subtitleSmall,
+              isLargeScreen && styles.subtitleLarge
+            ]} numberOfLines={3}>
               {currentMessage}
             </Text>
           )}
         </Animated.View>
       </View>
 
-      <View style={[styles.circleWrapper, { width: CIRCLE_DIAMETER, height: CIRCLE_DIAMETER }]}>
+      <View 
+        style={[styles.circleWrapper, { width: CIRCLE_DIAMETER, height: CIRCLE_DIAMETER }]}
+        onLayout={handleContainerLayout}
+      >
         {partners.map((partner, index) => {
           if (partner.isCenter) {
             return (
@@ -168,12 +248,28 @@ const Bienvenue = ({ navigation }) => {
                 key={index}
                 style={styles.centerPartner}
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate(partner.src)}
+                onPress={() => navigation.navigate(partner.src, { 
+  categorie: partner.name
+})}
               >
-                <View style={styles.centerIcon}>
-                  <Icon name={partner.icon} size={34} color="white" />
+                <View style={[
+                  styles.centerIcon,
+                  isSmallScreen && styles.centerIconSmall,
+                  isLargeScreen && styles.centerIconLarge
+                ]}>
+                  <Icon 
+                    name={partner.icon} 
+                    size={isSmallScreen ? 30 : isLargeScreen ? 38 : 34} 
+                    color="white" 
+                  />
                 </View>
-                <Text style={styles.centerName}>{partner.name}</Text>
+                <Text style={[
+                  styles.centerName,
+                  isSmallScreen && styles.centerNameSmall,
+                  isLargeScreen && styles.centerNameLarge
+                ]}>
+                  {partner.name}
+                </Text>
               </TouchableOpacity>
             );
           }
@@ -184,43 +280,85 @@ const Bienvenue = ({ navigation }) => {
           const y = RADIUS * Math.sin(radians);
 
           // === DÉTERMINATION DU BADGE ===
-          let badgeCount = 0;
-          if (partner.name === 'Publicités') badgeCount = count;
-          if (partner.name === 'Avis de recherche') badgeCount = countAvis;
-          if (partner.name === 'Catalogues') badgeCount = countArticle;
-          if (partner.name === 'Badge commercial') badgeCount = countOutils;
-
+     
           return (
             <TouchableOpacity
               key={index}
-              style={[styles.outerPartner, { transform: [{ translateX: x }, { translateY: y }] }]}
+              style={[
+                styles.outerPartner, 
+                { 
+                  transform: [{ translateX: x }, { translateY: y }],
+                  width: isSmallScreen ? 85 : isLargeScreen ? 110 : 100
+                }
+              ]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate(partner.src)}
+              onPress={() => navigation.navigate(partner.src, { 
+  categorie: partner.name
+})}
             >
               <View style={styles.outerIconContainer}>
-                <View style={styles.outerIcon}>
-                  <Icon name={partner.icon} size={26} color="#414d63" />
+                <View style={[
+                  styles.outerIcon,
+                  isSmallScreen && styles.outerIconSmall,
+                  isLargeScreen && styles.outerIconLarge
+                ]}>
+                  <Icon 
+                    name={partner.icon} 
+                    size={isSmallScreen ? 22 : isLargeScreen ? 28 : 26} 
+                    color="#414d63" 
+                  />
                 </View>
-                {badgeCount > 0 && (
-                  <View style={styles.badge}>
-                    <Text style={styles.badgeText}>
-                      {badgeCount > 99 ? '99+' : badgeCount}
-                    </Text>
-                  </View>
-                )}
+               
               </View>
-              <Text style={styles.outerName}>{partner.name}</Text>
+              <Text style={[
+                styles.outerName,
+                isSmallScreen && styles.outerNameSmall,
+                isLargeScreen && styles.outerNameLarge
+              ]}>
+                {partner.name}
+              </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <View style={styles.buttons}>
-        <TouchableOpacity style={styles.btnLogin} onPress={() => navigation.navigate('Connexion')}>
-          <Text style={styles.btnLoginText}>Connexion</Text>
+      <View style={[
+        styles.buttons,
+        isSmallScreen && styles.buttonsSmall,
+        isLargeScreen && styles.buttonsLarge
+      ]}>
+        <TouchableOpacity 
+          style={[
+            styles.btnLogin,
+            isSmallScreen && styles.btnLoginSmall,
+            isLargeScreen && styles.btnLoginLarge
+          ]} 
+          onPress={() => navigation.navigate('Connexion')}
+        >
+          <Text style={[
+            styles.btnLoginText,
+            isSmallScreen && styles.btnLoginTextSmall,
+            isLargeScreen && styles.btnLoginTextLarge
+          ]}>
+            Se connecter
+          </Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.btnSignup} onPress={() => navigation.navigate('Inscription')}>
-          <Text style={styles.btnSignupText}>Inscription</Text>
+        <TouchableOpacity 
+          style={[
+            styles.btnSignup,
+            isSmallScreen && styles.btnSignupSmall,
+            isLargeScreen && styles.btnSignupLarge
+          ]} 
+          onPress={() => navigation.navigate('Registre de controle')}
+          //onPress={() => navigation.navigate('Abonnement')}
+        >
+          <Text style={[
+            styles.btnSignupText,
+            isSmallScreen && styles.btnSignupTextSmall,
+            isLargeScreen && styles.btnSignupTextLarge
+          ]}>
+            Registres
+          </Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -233,40 +371,81 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 50,
-    paddingHorizontal: 20,
+    paddingVertical: Platform.select({
+      ios: 30,
+      android: 20,
+      default: 25
+    }),
+    paddingHorizontal: 16,
   },
-  header: { alignItems: 'center' },
+  header: { 
+    alignItems: 'center',
+    width: '100%',
+    flexShrink: 1,
+  },
   logo: {
     width: 80,
     height: 80,
     borderRadius: 20,
-    marginTop: 16,
+    marginTop: Platform.OS === 'ios' ? 10 : 16,
     marginBottom: 16,
   },
+  logoSmall: {
+    width: 70,
+    height: 70,
+    marginBottom: 12,
+  },
+  logoLarge: {
+    width: 90,
+    height: 90,
+    marginBottom: 20,
+  },
   title: {
-    fontSize: 36,
+    fontSize: scaleFont(36),
     fontWeight: '800',
     color: '#414d63',
     letterSpacing: -0.5,
     marginBottom: 10,
   },
+  titleSmall: {
+    fontSize: scaleFont(32),
+    marginBottom: 8,
+  },
+  titleLarge: {
+    fontSize: scaleFont(40),
+    marginBottom: 12,
+  },
+  messageContainer: {
+    alignItems: 'center',
+    width: '100%',
+  },
   subtitle: {
-    fontSize: 15,
+    fontSize: scaleFont(15),
     color: '#718096',
     textAlign: 'center',
     lineHeight: 22,
     paddingHorizontal: 20,
   },
+  subtitleSmall: {
+    fontSize: scaleFont(13),
+    lineHeight: 20,
+    paddingHorizontal: 16,
+  },
+  subtitleLarge: {
+    fontSize: scaleFont(17),
+    lineHeight: 24,
+    paddingHorizontal: 24,
+  },
   circleWrapper: {
     position: 'relative',
     justifyContent: 'center',
     alignItems: 'center',
+    flexShrink: 1,
+    marginVertical: 10,
   },
   outerPartner: {
     position: 'absolute',
     alignItems: 'center',
-    width: 100,
   },
   outerIconContainer: {
     position: 'relative',
@@ -286,6 +465,16 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
+  outerIconSmall: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  outerIconLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+  },
   badge: {
     position: 'absolute',
     top: -8,
@@ -300,19 +489,50 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#fff',
   },
+  badgeSmall: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    top: -6,
+    right: -6,
+    borderWidth: 1.5,
+  },
+  badgeLarge: {
+    minWidth: 28,
+    height: 28,
+    borderRadius: 14,
+    top: -10,
+    right: -10,
+  },
   badgeText: {
     color: '#fff',
     fontSize: 11,
     fontWeight: 'bold',
   },
+  badgeTextSmall: {
+    fontSize: 9,
+  },
+  badgeTextLarge: {
+    fontSize: 13,
+  },
   outerName: {
-    marginTop: 10,
-    fontSize: 12.5,
+    marginTop: 8,
+    fontSize: scaleFont(12.5),
     fontWeight: '600',
     color: '#2d3748',
     textAlign: 'center',
   },
-  centerPartner: { alignItems: 'center' },
+  outerNameSmall: {
+    fontSize: scaleFont(11),
+    marginTop: 6,
+  },
+  outerNameLarge: {
+    fontSize: scaleFont(14),
+    marginTop: 10,
+  },
+  centerPartner: { 
+    alignItems: 'center' 
+  },
   centerIcon: {
     width: 86,
     height: 86,
@@ -326,17 +546,48 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 14,
   },
+  centerIconSmall: {
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+  },
+  centerIconLarge: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+  },
   centerName: {
     marginTop: 12,
-    fontSize: 14,
+    fontSize: scaleFont(14),
     fontWeight: '700',
     color: '#414d63',
+  },
+  centerNameSmall: {
+    fontSize: scaleFont(12),
+    marginTop: 10,
+  },
+  centerNameLarge: {
+    fontSize: scaleFont(16),
+    marginTop: 14,
   },
   buttons: {
     flexDirection: 'row',
     gap: 14,
     width: '100%',
     paddingHorizontal: 10,
+    marginTop: Platform.select({
+      ios: 'auto',
+      android: 10,
+      default: 20
+    }),
+  },
+  buttonsSmall: {
+    gap: 10,
+    paddingHorizontal: 8,
+  },
+  buttonsLarge: {
+    gap: 18,
+    paddingHorizontal: 12,
   },
   btnLogin: {
     flex: 1,
@@ -350,7 +601,25 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
   },
-  btnLoginText: { color: 'white', fontSize: 17, fontWeight: '600' },
+  btnLoginSmall: {
+    height: 50,
+    borderRadius: 12,
+  },
+  btnLoginLarge: {
+    height: 62,
+    borderRadius: 16,
+  },
+  btnLoginText: { 
+    color: 'white', 
+    fontSize: scaleFont(17), 
+    fontWeight: '600' 
+  },
+  btnLoginTextSmall: {
+    fontSize: scaleFont(15),
+  },
+  btnLoginTextLarge: {
+    fontSize: scaleFont(19),
+  },
   btnSignup: {
     flex: 1,
     height: 56,
@@ -361,7 +630,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  btnSignupText: { color: '#414d63', fontSize: 17, fontWeight: '600' },
+  btnSignupSmall: {
+    height: 50,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  btnSignupLarge: {
+    height: 62,
+    borderRadius: 16,
+    borderWidth: 2.5,
+  },
+  btnSignupText: { 
+    color: '#414d63', 
+    fontSize: scaleFont(17), 
+    fontWeight: '600' 
+  },
+  btnSignupTextSmall: {
+    fontSize: scaleFont(15),
+  },
+  btnSignupTextLarge: {
+    fontSize: scaleFont(19),
+  },
 });
 
 export default Bienvenue;
