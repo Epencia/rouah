@@ -1,11 +1,12 @@
 {
   "expo": {
-    "name": "rouah",
+    "name": "Rouah",
     "slug": "rouah",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "rouah",
     "ios": {
       "supportsTablet": true
     },
@@ -15,10 +16,61 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.mandigoentreprise.rouah",
+      "googleServicesFile": "./google-services.json",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "rouah",
+              "host": "*"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        },
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "rouah.net",
+              "pathPrefix": "/"
+            },
+            {
+              "scheme": "https",
+              "host": "www.rouah.net",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-mail-composer",
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-splash-screen",
+      "expo-sqlite",
+      "expo-video",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "8b74f350-58f4-4c6c-b308-738040a6846d"
+      }
     }
   }
 }

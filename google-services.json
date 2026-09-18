@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "931558578733",
+    "project_id": "adores-rouah",
+    "storage_bucket": "adores-rouah.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:931558578733:android:eb6dc648da8691a506b6a4",
+        "android_client_info": {
+          "package_name": "com.mandigoentreprise.rouah"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1ZGO-jRK0ZK6k7b-LNu6DOMS0M0lT7uI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
