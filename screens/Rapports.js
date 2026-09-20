@@ -1,4 +1,4 @@
-// Rapports.js - Version corrigée avec onglets pleine largeur
+// Rapports.js - Version avec onglets Clients et Fournisseurs
 
 import React, { useState, useEffect, useCallback } from 'react';
 import {
@@ -10,13 +10,16 @@ import {
   ActivityIndicator,
   RefreshControl,
   Platform,
-  StatusBar,
+  StatusBar, Alert, Linking,TextInput
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 
 const API_URL = 'https://rouah.net/api/api-rapport.php';
+const API_PDF_URL = 'https://rouah.net/api/api-rapport-pdf.php';
 
 const DEFAULT_COLORS = {
   primary: '#075E54',
@@ -50,11 +53,14 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [data, setData] = useState(null);
+  const [searchText, setSearchText] = useState('');
 
   const [dateDebut, setDateDebut] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [dateFin, setDateFin] = useState(() => new Date());
   const [showPicker, setShowPicker] = useState(false);
   const [pickerTarget, setPickerTarget] = useState('debut');
+
+  const [downloading, setDownloading] = useState(false);
 
   const load = useCallback(async () => {
     if (!societeId) return;
@@ -67,6 +73,8 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
         stocks: 'rapport_stocks',
         finances: 'rapport_finances',
         rentabilite: 'rapport_rentabilite',
+        clients: 'rapport_clients',
+        fournisseurs: 'rapport_fournisseurs',
       };
       
       const strDebut = formatDate(dateDebut);
@@ -99,6 +107,11 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
     if (societeId) load();
   }, [societeId, load]);
 
+  // Reset la recherche quand on change d'onglet
+  useEffect(() => {
+    setSearchText('');
+  }, [tab]);
+
   const onDateChange = (event, selectedDate) => {
     setShowPicker(Platform.OS === 'ios');
     if (selectedDate) {
@@ -117,6 +130,91 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
     setShowPicker(true);
   };
 
+  // ===== TÉLÉCHARGEMENT PDF =====
+  const downloadPDF = async () => {
+    try {
+      setDownloading(true);
+      
+      const strDebut = formatDate(dateDebut);
+      const strFin = formatDate(dateFin);
+      
+      const params = [
+        `societe_id=${encodeURIComponent(societeId)}`,
+        `date_debut=${encodeURIComponent(strDebut)}`,
+        `date_fin=${encodeURIComponent(strFin)}`,
+        `type_rapport=complet`,
+      ];
+      if (boutiqueId) {
+        params.push(`boutique_id=${encodeURIComponent(boutiqueId)}`);
+      }
+      const url = `${API_PDF_URL}?${params.join('&')}`;
+      
+      console.log('URL PDF:', url);
+      
+      const filename = `rapport_${strDebut}_${strFin}.pdf`;
+      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+      
+      try {
+        const info = await FileSystem.getInfoAsync(fileUri);
+        if (info.exists) {
+          await FileSystem.deleteAsync(fileUri, { idempotent: true });
+        }
+      } catch (e) {
+        console.log('Pas d\'ancien fichier à supprimer');
+      }
+      
+      const downloadResult = await FileSystem.downloadAsync(url, fileUri, {
+        headers: {
+          'Accept': 'application/pdf,text/html,*/*',
+          'User-Agent': Platform.OS === 'android'
+            ? 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+            : 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+          'Referer': 'https://rouah.net/',
+          'Origin': 'https://rouah.net',
+        },
+      });
+      
+      console.log('Status HTTP:', downloadResult.status);
+      
+      if (downloadResult.status !== 200) {
+        throw new Error(`Erreur HTTP ${downloadResult.status}`);
+      }
+      
+      const fileInfo = await FileSystem.getInfoAsync(downloadResult.uri);
+      console.log('Taille PDF:', fileInfo.size, 'bytes');
+      
+      if (!fileInfo.exists || fileInfo.size < 1000) {
+        const content = await FileSystem.readAsStringAsync(downloadResult.uri);
+        console.error('Contenu reçu:', content.substring(0, 500));
+        throw new Error('Le fichier PDF est vide ou invalide');
+      }
+      
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(downloadResult.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Rapport commercial',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert(
+          'PDF téléchargé',
+          `Le rapport a été enregistré :\n${downloadResult.uri}`,
+          [{ text: 'OK' }]
+        );
+      }
+      
+    } catch (error) {
+      console.error('Erreur téléchargement PDF:', error);
+      Alert.alert(
+        'Erreur de téléchargement',
+        `Impossible de générer le PDF.\n\n${error.message}`,
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const formatMoney = (v) => Number(v || 0).toLocaleString('fr-FR') + ' F';
   const formatNumber = (v) => Number(v || 0).toLocaleString('fr-FR');
 
@@ -130,6 +228,8 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
 
   const tabs = [
     { key: 'resume', label: 'Résumé' },
+    { key: 'clients', label: 'Clients' },
+    { key: 'fournisseurs', label: 'Fournisseurs' },
     { key: 'ventes', label: 'Ventes' },
     { key: 'achats', label: 'Achats' },
     { key: 'stocks', label: 'Stocks' },
@@ -137,7 +237,18 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
     { key: 'rentabilite', label: 'Marge' },
   ];
 
-  // Affichage du chargement
+  // ============ FILTRAGE DES ACTEURS ============
+  const getFilteredActeurs = () => {
+    const list = tab === 'clients' ? (data?.clients || []) : (data?.fournisseurs || []);
+    if (!searchText.trim()) return list;
+    const q = searchText.toLowerCase();
+    return list.filter((a) =>
+      (a.nom_prenom || '').toLowerCase().includes(q) ||
+      (a.telephone || '').toLowerCase().includes(q) ||
+      (a.email || '').toLowerCase().includes(q)
+    );
+  };
+
   if (loading && !data) {
     return (
       <View style={[styles.safeContainer, { backgroundColor: '#f3f4f6' }]}>
@@ -148,6 +259,199 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
       </View>
     );
   }
+
+  // ============ RENDU SPÉCIFIQUE : ACTEURS (Clients/Fournisseurs) ============
+  const renderActeursContent = () => {
+    const isClient = tab === 'clients';
+    const stats = data?.stats || {};
+    const acteurs = getFilteredActeurs();
+    
+    return (
+      <>
+        {/* 4 cartes statistiques : Payés et Impayés */}
+        <Text style={[styles.section, { color: colors.text, marginTop: 4 }]}>
+          {isClient ? '💰 Statistiques Clients' : '💳 Statistiques Fournisseurs'}
+        </Text>
+        
+        <View style={styles.row}>
+          <View style={[styles.statCard, { backgroundColor: '#dcfce7', borderColor: '#bbf7d0' }]}>
+            <View style={styles.statCardHeader}>
+              <Ionicons name="checkmark-circle" size={18} color="#16a34a" />
+              <Text style={[styles.statCardLabel, { color: '#166534' }]}>Payés</Text>
+            </View>
+            <Text style={[styles.statCardValue, { color: '#15803d' }]}>
+              {formatNumber(stats.nb_payes || 0)}
+            </Text>
+            <Text style={[styles.statCardSub, { color: '#166534' }]}>
+              {isClient ? 'clients' : 'fournisseurs'}
+            </Text>
+          </View>
+
+          <View style={[styles.statCard, { backgroundColor: '#fee2e2', borderColor: '#fecaca' }]}>
+            <View style={styles.statCardHeader}>
+              <Ionicons name="alert-circle" size={18} color="#dc2626" />
+              <Text style={[styles.statCardLabel, { color: '#991b1b' }]}>Impayés</Text>
+            </View>
+            <Text style={[styles.statCardValue, { color: '#b91c1c' }]}>
+              {formatNumber(stats.nb_impayes || 0)}
+            </Text>
+            <Text style={[styles.statCardSub, { color: '#991b1b' }]}>
+              {isClient ? 'clients' : 'fournisseurs'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.row}>
+          <View style={[styles.statCard, { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }]}>
+            <View style={styles.statCardHeader}>
+              <Ionicons name="cash" size={18} color="#16a34a" />
+              <Text style={[styles.statCardLabel, { color: '#166534' }]}>Montant payé</Text>
+            </View>
+            <Text style={[styles.statCardValue, { color: '#15803d', fontSize: 13 }]}>
+              {formatMoney(stats.montant_payes || 0)}
+            </Text>
+            <Text style={[styles.statCardSub, { color: '#166534' }]}>
+              Total TTC
+            </Text>
+          </View>
+
+          <View style={[styles.statCard, { backgroundColor: '#fef2f2', borderColor: '#fecaca' }]}>
+            <View style={styles.statCardHeader}>
+              <Ionicons name="warning" size={18} color="#dc2626" />
+              <Text style={[styles.statCardLabel, { color: '#991b1b' }]}>Reste à payer</Text>
+            </View>
+            <Text style={[styles.statCardValue, { color: '#b91c1c', fontSize: 13 }]}>
+              {formatMoney(stats.montant_impayes || 0)}
+            </Text>
+            <Text style={[styles.statCardSub, { color: '#991b1b' }]}>
+              Total impayé
+            </Text>
+          </View>
+        </View>
+
+        {/* Barre de recherche */}
+        <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Ionicons name="search" size={18} color={colors.muted} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.text }]}
+            placeholder={`Rechercher un ${isClient ? 'client' : 'fournisseur'}...`}
+            placeholderTextColor={colors.muted}
+            value={searchText}
+            onChangeText={setSearchText}
+          />
+          {searchText.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchText('')}>
+              <Ionicons name="close-circle" size={18} color={colors.muted} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Liste des acteurs */}
+        <Text style={[styles.section, { color: colors.text }]}>
+          {isClient ? '👥 Liste des clients' : '🏢 Liste des fournisseurs'} ({acteurs.length})
+        </Text>
+
+        {acteurs.length === 0 ? (
+          <View style={[styles.emptyBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Ionicons name="folder-open-outline" size={40} color={colors.muted} />
+            <Text style={{ color: colors.muted, marginTop: 8, textAlign: 'center' }}>
+              {searchText 
+                ? 'Aucun résultat pour cette recherche'
+                : `Aucun ${isClient ? 'client' : 'fournisseur'} sur cette période`}
+            </Text>
+          </View>
+        ) : (
+          acteurs.map((acteur, index) => {
+            const isPaid = acteur.statut === 'Payé';
+            const hasDocs = (acteur.nb_documents || 0) > 0;
+            
+            return (
+              <View 
+                key={acteur.acteur_id || index} 
+                style={[styles.acteurCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+              >
+                {/* Header : nom + statut */}
+                <View style={styles.acteurHeader}>
+                  <View style={[styles.acteurAvatar, { backgroundColor: isClient ? '#075E54' : '#E74C3C' }]}>
+                    <Text style={styles.acteurAvatarText}>
+                      {(acteur.nom_prenom || '?').charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.acteurName, { color: colors.text }]} numberOfLines={1}>
+                      {acteur.nom_prenom || 'Sans nom'}
+                    </Text>
+                    {acteur.telephone ? (
+                      <Text style={[styles.acteurSub, { color: colors.muted }]} numberOfLines={1}>
+                        {acteur.telephone}
+                      </Text>
+                    ) : null}
+                  </View>
+                  {/* Badge statut */}
+                  <View style={[
+                    styles.statusBadge,
+                    { backgroundColor: !hasDocs ? '#f3f4f6' : (isPaid ? '#dcfce7' : '#fee2e2') }
+                  ]}>
+                    <Text style={[
+                      styles.statusBadgeText,
+                      { color: !hasDocs ? '#6b7280' : (isPaid ? '#16a34a' : '#dc2626') }
+                    ]}>
+                      {!hasDocs ? '-' : (isPaid ? '✓ Payé' : '⚠ Impayé')}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Stats : Documents, Montants */}
+                <View style={styles.acteurStatsRow}>
+                  <View style={styles.acteurStatItem}>
+                    <Text style={[styles.acteurStatLabel, { color: colors.muted }]}>Docs</Text>
+                    <Text style={[styles.acteurStatValue, { color: colors.text }]}>
+                      {formatNumber(acteur.nb_documents || 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.acteurStatItem}>
+                    <Text style={[styles.acteurStatLabel, { color: colors.muted }]}>Validés</Text>
+                    <Text style={[styles.acteurStatValue, { color: '#2563eb' }]}>
+                      {formatNumber(acteur.nb_valides || 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.acteurStatItem}>
+                    <Text style={[styles.acteurStatLabel, { color: colors.muted }]}>Total TTC</Text>
+                    <Text style={[styles.acteurStatValue, { color: colors.text, fontSize: 12 }]} numberOfLines={1}>
+                      {formatMoney(acteur.total_ttc || 0)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Ligne Montants : Avance + Reste */}
+                <View style={styles.acteurMontantsRow}>
+                  <View style={styles.acteurMontantItem}>
+                    <Text style={[styles.acteurMontantLabel, { color: colors.muted }]}>Avance</Text>
+                    <Text style={[styles.acteurMontantValue, { color: '#16a34a' }]} numberOfLines={1}>
+                      {formatMoney(acteur.total_avance || 0)}
+                    </Text>
+                  </View>
+                  <View style={[styles.acteurMontantDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.acteurMontantItem}>
+                    <Text style={[styles.acteurMontantLabel, { color: colors.muted }]}>Reste</Text>
+                    <Text 
+                      style={[
+                        styles.acteurMontantValue, 
+                        { color: (parseFloat(acteur.total_reste) || 0) > 0 ? '#dc2626' : '#16a34a' }
+                      ]} 
+                      numberOfLines={1}
+                    >
+                      {formatMoney(acteur.total_reste || 0)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })
+        )}
+      </>
+    );
+  };
 
   return (
     <View style={[styles.safeContainer, { backgroundColor: '#f3f4f6' }]}>
@@ -162,12 +466,25 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
           )}
           <Text style={styles.rapportHeaderTitle}>Rapports</Text>
         </View>
-        <TouchableOpacity onPress={load} style={styles.refreshBtn}>
-          <Ionicons name="refresh-outline" size={22} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity onPress={load} style={styles.refreshBtn}>
+            <Ionicons name="refresh-outline" size={22} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={downloadPDF} 
+            style={styles.downloadBtn}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="download-outline" size={22} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* ===== ONGLETS - Version corrigée ===== */}
+      {/* ===== ONGLETS ===== */}
       <View style={[styles.tabsContainer, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
         <ScrollView 
           horizontal 
@@ -215,9 +532,8 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
           value={pickerTarget === 'debut' ? dateDebut : dateFin}
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChangeDate={onDateChange}
+          onChange={onDateChange}
           maximumDate={new Date()}
-          textColor={colors.text}
         />
       )}
       {Platform.OS === 'ios' && showPicker && (
@@ -367,6 +683,9 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
             </>
           )}
 
+          {/* ONGLETS CLIENTS & FOURNISSEURS */}
+          {(tab === 'clients' || tab === 'fournisseurs') && data && renderActeursContent()}
+
           {!data && !loading && (
             <Text style={{ textAlign: 'center', color: colors.muted, marginTop: 40, fontSize: 14 }}>
               Aucune donnée pour cette période
@@ -385,7 +704,6 @@ export default function RapportsScreen({ societeId, boutiqueId, colors: colorsPr
 }
 
 // ================== STYLES ==================
-
 const styles = StyleSheet.create({
   safeContainer: { 
     flex: 1,
@@ -400,7 +718,7 @@ const styles = StyleSheet.create({
   rapportHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 46, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#f0f0f0',backgroundColor:'#075E54'
+    borderBottomWidth: 1, borderBottomColor: '#f0f0f0', backgroundColor: '#075E54'
   },
   rapportHeaderLeft: {
     flexDirection: 'row',
@@ -415,7 +733,6 @@ const styles = StyleSheet.create({
   backBtn: { padding: 4 },
   refreshBtn: { padding: 4 },
 
-  // ===== NOUVEAUX STYLES POUR LES ONGLETS =====
   tabsContainer: {
     borderBottomWidth: 1,
     paddingVertical: 0,
@@ -431,9 +748,7 @@ const styles = StyleSheet.create({
     minWidth: 70,
     position: 'relative',
   },
-  tabItemActive: {
-    // Style actif
-  },
+  tabItemActive: {},
   tabText: {
     fontSize: 12,
     fontWeight: '600',
@@ -508,5 +823,160 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     marginTop: 6,
     borderWidth: 1,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  downloadBtn: {
+    padding: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+  },
+
+  // ===== CARTES STATISTIQUES (Payés/Impayés) =====
+  statCard: {
+    flex: 1,
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+  },
+  statCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  statCardLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  statCardValue: {
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  statCardSub: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+
+  // ===== BARRE DE RECHERCHE =====
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+    marginBottom: 4,
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    paddingVertical: 4,
+  },
+
+  // ===== CARTES ACTEURS =====
+  acteurCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 8,
+  },
+  acteurHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+    gap: 10,
+  },
+  acteurAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  acteurAvatarText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  acteurName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  acteurSub: {
+    fontSize: 11,
+    marginTop: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  statusBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+
+  // Stats ligne : Docs / Validés / Total TTC
+  acteurStatsRow: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  acteurStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  acteurStatLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    marginBottom: 2,
+  },
+  acteurStatValue: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+
+  // Montants : Avance + Reste
+  acteurMontantsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 8,
+  },
+  acteurMontantItem: {
+    flex: 1,
+  },
+  acteurMontantLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  acteurMontantValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 1,
+  },
+  acteurMontantDivider: {
+    width: 1,
+    height: 24,
+    marginHorizontal: 10,
+  },
+
+  // Boîte vide
+  emptyBox: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

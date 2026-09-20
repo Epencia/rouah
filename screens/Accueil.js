@@ -1625,6 +1625,7 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
       <Header 
         title={client.nom_prenom ? truncateName(client.nom_prenom, 20) : 'Client'}  
         onBack={onBack} 
+        showLogo={false}
         customRightIcons={customIcons} 
       />
 
@@ -1877,6 +1878,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
       <Header
         title={fournisseur.nom_prenom ? truncateName(fournisseur.nom_prenom, 20) : 'Fournisseur'}
         onBack={onBack}
+        showLogo={false}
         customRightIcons={customIcons}
       />
 

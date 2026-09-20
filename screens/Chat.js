@@ -26,7 +26,8 @@ import {
   StatusBar,
   Dimensions,
   Image,
-  FlatList,Alert
+  FlatList,
+  Alert,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -64,11 +65,8 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
   const [recognizing, setRecognizing] = useState(false);
 
   const [statsVisible, setStatsVisible] = useState(false);
-  const [checkIaVisible, setCheckIaVisible] = useState(false);
   const [statsData, setStatsData] = useState(null);
-  const [checkIaData, setCheckIaData] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
-  const [checkIaLoading, setCheckIaLoading] = useState(false);
 
   // Clavier : hauteur détectée
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -86,7 +84,6 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
       (e) => {
         setKeyboardVisible(true);
         setKeyboardHeight(e.endCoordinates.height);
-        // Scroll vers le bas après ouverture
         setTimeout(() => {
           scrollRef.current?.scrollToEnd({ animated: true });
         }, 120);
@@ -321,28 +318,6 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
   };
 
   // ============================================================
-  // CHECK IA
-  // ============================================================
-  const openCheckIa = async () => {
-    setCheckIaVisible(true);
-    setCheckIaLoading(true);
-    setCheckIaData(null);
-    try {
-      const res = await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check_ia', societe_id: societeId }),
-      });
-      const data = await res.json();
-      setCheckIaData(data);
-    } catch (e) {
-      setCheckIaData({ error: 'Erreur réseau' });
-    } finally {
-      setCheckIaLoading(false);
-    }
-  };
-
-  // ============================================================
   // RENDU DES MESSAGES (mémorisé)
   // ============================================================
   const renderItem = useCallback(
@@ -370,8 +345,8 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-              <Ionicons name="arrow-back" size={24} color="#075E54" />
-            </TouchableOpacity>
+            <Ionicons name="arrow-back" size={24} color="#075E54" />
+          </TouchableOpacity>
         </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
@@ -394,147 +369,141 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
           >
             <Text style={styles.headerBtnIcon}>📊</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={openCheckIa}
-            style={[styles.headerBtn, styles.headerBtnSuccess]}
-          >
-            <Text style={styles.headerBtnIcon}>🤖</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
       {/* CHAT + INPUT dans KeyboardAvoidingView */}
-<KeyboardAvoidingView
-  style={styles.chatWrapper}
-  behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-  keyboardVerticalOffset={Platform.OS === 'ios' ? 60 + insets.top : 0}
->
-  <FlatList
-    ref={scrollRef}
-    data={messages}
-    keyExtractor={keyExtractor}
-    renderItem={renderItem}
-    contentContainerStyle={[
-      styles.listContent,
-      messages.length === 0 && styles.listContentEmpty,
-    ]}
-    keyboardShouldPersistTaps="handled"
-    keyboardDismissMode="interactive"
-    showsVerticalScrollIndicator={false}
-    removeClippedSubviews={Platform.OS === 'android'}
-    maxToRenderPerBatch={5}
-    windowSize={7}
-    initialNumToRender={8}
-    updateCellsBatchingPeriod={50}
-    onContentSizeChange={() =>
-      scrollRef.current?.scrollToEnd({ animated: true })
-    }
-    ListEmptyComponent={<Welcome societeNom={societeNom} />}
-    ListFooterComponent={
-      isLoading ? (
-        <View style={styles.statusBar}>
-          <View style={styles.statusIcon}>
-            <Text style={styles.statusIconText}>R</Text>
+      <KeyboardAvoidingView
+        style={styles.chatWrapper}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 60 + insets.top : 0}
+      >
+        <FlatList
+          ref={scrollRef}
+          data={messages}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={[
+            styles.listContent,
+            messages.length === 0 && styles.listContentEmpty,
+          ]}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={Platform.OS === 'android'}
+          maxToRenderPerBatch={5}
+          windowSize={7}
+          initialNumToRender={8}
+          updateCellsBatchingPeriod={50}
+          onContentSizeChange={() =>
+            scrollRef.current?.scrollToEnd({ animated: true })
+          }
+          ListEmptyComponent={<Welcome societeNom={societeNom} />}
+          ListFooterComponent={
+            isLoading ? (
+              <View style={styles.statusBar}>
+                <View style={styles.statusIcon}>
+                  <Text style={styles.statusIconText}>R</Text>
+                </View>
+                <ActivityIndicator size="small" color="#6c63ff" />
+                <Text style={styles.statusText}>
+                  L'IA analyse votre question...
+                </Text>
+              </View>
+            ) : null
+          }
+        />
+
+        {/* Barre de lecture vocale */}
+        {isSpeaking && (
+          <View style={[styles.statusBar, styles.statusBarSpeaking]}>
+            <View style={styles.statusIcon}>
+              <Text style={styles.statusIconText}>R</Text>
+            </View>
+            <Text style={[styles.statusText, styles.statusTextSpeaking]}>
+              🔊 Lecture en cours...
+            </Text>
+            <TouchableOpacity onPress={stopSpeaking}>
+              <Text style={styles.stopText}>Arrêter</Text>
+            </TouchableOpacity>
           </View>
-          <ActivityIndicator size="small" color="#6c63ff" />
-          <Text style={styles.statusText}>
-            L'IA analyse votre question...
+        )}
+
+        {/* INPUT */}
+        <View
+          style={[
+            styles.inputArea,
+            {
+              paddingBottom:
+                Platform.OS === 'ios'
+                  ? Math.max(12, insets.bottom)
+                  : Math.max(12, insets.bottom || 12),
+            },
+          ]}
+        >
+          {editingIndex !== null && (
+            <View style={styles.editingBanner}>
+              <Text style={styles.editingText}>
+                ✏️ Modification de la question
+              </Text>
+              <TouchableOpacity onPress={cancelEdit}>
+                <Text style={styles.cancelEditText}>✕ Annuler</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.inputBar}>
+            <TextInput
+              ref={inputRef}
+              style={styles.input}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Posez votre question..."
+              placeholderTextColor="#94a3b8"
+              multiline
+              maxLength={1000}
+              editable={!isLoading}
+              blurOnSubmit={false}
+            />
+            <TouchableOpacity
+              onPress={toggleVoiceRecognition}
+              style={[
+                styles.voiceButton,
+                recognizing && styles.voiceButtonActive,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.voiceButtonText,
+                  recognizing && { color: '#fff' },
+                ]}
+              >
+                {recognizing ? '🎙️' : '🎤'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.sendButton,
+                inputText.trim() && !isLoading && styles.sendButtonActive,
+              ]}
+              onPress={handleSend}
+              disabled={!inputText.trim() || isLoading}
+            >
+              <Text
+                style={[
+                  styles.sendButtonText,
+                  inputText.trim() && !isLoading && { color: '#fff' },
+                ]}
+              >
+                {editingIndex !== null ? '✓' : '➤'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.disclaimer}>
+            🔒 L'IA peut faire des erreurs. Vérifiez les informations importantes.
           </Text>
         </View>
-      ) : null
-    }
-  />
-
-  {/* Barre de lecture vocale */}
-  {isSpeaking && (
-    <View style={[styles.statusBar, styles.statusBarSpeaking]}>
-      <View style={styles.statusIcon}>
-        <Text style={styles.statusIconText}>R</Text>
-      </View>
-      <Text style={[styles.statusText, styles.statusTextSpeaking]}>
-        🔊 Lecture en cours...
-      </Text>
-      <TouchableOpacity onPress={stopSpeaking}>
-        <Text style={styles.stopText}>Arrêter</Text>
-      </TouchableOpacity>
-    </View>
-  )}
-
-  {/* INPUT */}
-  <View
-    style={[
-      styles.inputArea,
-      {
-        paddingBottom:
-          Platform.OS === 'ios'
-            ? Math.max(12, insets.bottom)
-            : Math.max(12, insets.bottom || 12),
-      },
-    ]}
-  >
-    {editingIndex !== null && (
-      <View style={styles.editingBanner}>
-        <Text style={styles.editingText}>
-          ✏️ Modification de la question
-        </Text>
-        <TouchableOpacity onPress={cancelEdit}>
-          <Text style={styles.cancelEditText}>✕ Annuler</Text>
-        </TouchableOpacity>
-      </View>
-    )}
-
-    <View style={styles.inputBar}>
-      <TextInput
-        ref={inputRef}
-        style={styles.input}
-        value={inputText}
-        onChangeText={setInputText}
-        placeholder="Posez votre question..."
-        placeholderTextColor="#94a3b8"
-        multiline
-        maxLength={1000}
-        editable={!isLoading}
-        blurOnSubmit={false}
-      />
-      <TouchableOpacity
-        onPress={toggleVoiceRecognition}
-        style={[
-          styles.voiceButton,
-          recognizing && styles.voiceButtonActive,
-        ]}
-      >
-        <Text
-          style={[
-            styles.voiceButtonText,
-            recognizing && { color: '#fff' },
-          ]}
-        >
-          {recognizing ? '🎙️' : '🎤'}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[
-          styles.sendButton,
-          inputText.trim() && !isLoading && styles.sendButtonActive,
-        ]}
-        onPress={handleSend}
-        disabled={!inputText.trim() || isLoading}
-      >
-        <Text
-          style={[
-            styles.sendButtonText,
-            inputText.trim() && !isLoading && { color: '#fff' },
-          ]}
-        >
-          {editingIndex !== null ? '✓' : '➤'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-    <Text style={styles.disclaimer}>
-      🔒 L'IA peut faire des erreurs. Vérifiez les informations importantes.
-    </Text>
-  </View>
-</KeyboardAvoidingView>
+      </KeyboardAvoidingView>
 
       {/* MODAL STATS */}
       <Modal
@@ -563,7 +532,8 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
             ) : statsData?.error ? (
               <Text style={styles.errorText}>❌ {statsData.error}</Text>
             ) : statsData?.stats ? (
-              <ScrollView>
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {/* Vue d'ensemble */}
                 <View style={styles.statsGrid}>
                   <View style={styles.statItem}>
                     <Text style={styles.statLabel}>📋 Tables</Text>
@@ -577,7 +547,7 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
                       {statsData.stats.total_rows.toLocaleString()}
                     </Text>
                   </View>
-                  <View style={[styles.statItem, { width: '100%' }]}>
+                  <View style={styles.statItem}>
                     <Text style={styles.statLabel}>💾 Taille totale</Text>
                     <Text
                       style={[
@@ -591,88 +561,48 @@ export default function ChatScreen({ societeId, societeNom, onBack }) {
                   </View>
                 </View>
 
+                {/* Détail des tables en cartes 2 par ligne */}
                 <Text style={styles.sectionTitle}>📋 Détail des tables</Text>
-                {statsData.stats.tables.map((t, i) => (
-                  <View key={i} style={styles.tableRow}>
-                    <View>
-                      <Text style={styles.tableName}>📊 {t.name}</Text>
-                      <Text style={styles.tableInfo}>
-                        {t.rows.toLocaleString()} lignes
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        styles.tableInfo,
-                        parseFloat(t.size) > 100 && styles.statValueDanger,
-                      ]}
-                    >
-                      {t.size}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
-          </View>
-        </View>
-      </Modal>
-
-      {/* MODAL CHECK IA */}
-      <Modal
-        visible={checkIaVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setCheckIaVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>🤖 Configuration IA</Text>
-              <TouchableOpacity onPress={() => setCheckIaVisible(false)}>
-                <Text style={styles.modalClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {checkIaLoading ? (
-              <ActivityIndicator
-                size="large"
-                color="#6c63ff"
-                style={{ marginTop: 30 }}
-              />
-            ) : checkIaData?.error ? (
-              <Text style={styles.errorText}>❌ {checkIaData.error}</Text>
-            ) : checkIaData ? (
-              <View>
-                <View
-                  style={
-                    checkIaData.ia_configuree
-                      ? styles.successBox
-                      : styles.errorBox
-                  }
-                >
-                  <Text style={styles.checkIaIcon}>
-                    {checkIaData.ia_configuree ? '✅' : '❌'}
-                  </Text>
-                  <Text style={styles.checkIaText}>
-                    {checkIaData.ia_configuree
-                      ? `${checkIaData.nb_tokens} token(s) IA actif(s)`
-                      : 'Aucun token IA configuré'}
-                  </Text>
-                </View>
-
-                {checkIaData.tokens_ids &&
-                  checkIaData.tokens_ids.length > 0 && (
-                    <>
-                      <Text style={styles.sectionTitle}>
-                        Tokens configurés :
-                      </Text>
-                      {checkIaData.tokens_ids.map((id, i) => (
-                        <View key={i} style={styles.tokenRow}>
-                          <Text style={styles.tokenText}>🔑 {id}</Text>
+                <View style={styles.tablesCardsGrid}>
+                  {statsData.stats.tables.map((t, i) => {
+                    const isLarge = parseFloat(t.size) > 100;
+                    return (
+                      <View key={i} style={styles.tableCard}>
+                        <View style={styles.tableCardHeader}>
+                          <Text style={styles.tableCardEmoji}>📊</Text>
+                          <Text
+                            style={styles.tableCardName}
+                            numberOfLines={2}
+                            ellipsizeMode="tail"
+                          >
+                            {t.name}
+                          </Text>
                         </View>
-                      ))}
-                    </>
-                  )}
-              </View>
+                        <View style={styles.tableCardDivider} />
+                        <View style={styles.tableCardRow}>
+                          <View style={styles.tableCardStat}>
+                            <Text style={styles.tableCardStatLabel}>Lignes</Text>
+                            <Text style={styles.tableCardStatValue}>
+                              {t.rows.toLocaleString()}
+                            </Text>
+                          </View>
+                          <View style={styles.tableCardStat}>
+                            <Text style={styles.tableCardStatLabel}>Taille</Text>
+                            <Text
+                              style={[
+                                styles.tableCardStatValue,
+                                isLarge && styles.tableCardStatValueDanger,
+                              ]}
+                            >
+                              {t.size}
+                            </Text>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
             ) : null}
           </View>
         </View>
@@ -691,8 +621,7 @@ const Welcome = React.memo(() => (
     </View>
     <Text style={styles.welcomeTitle}>Bonjour !</Text>
     <Text style={styles.welcomeText}>
-      Je suis votre assistant IA connecté à votre base de données{'\n'}
-      Posez-moi vos questions, je vous renvoie les résultats.
+      Je suis votre assistant IA connecté à votre base de données. Posez-moi vos questions.
     </Text>
   </View>
 ));
@@ -705,8 +634,6 @@ const MessageBubble = React.memo(({ item, index, onEdit, onSpeak }) => {
   const [displayLimit, setDisplayLimit] = useState(10);
   const [showSql, setShowSql] = useState(false);
   const [chartExpanded, setChartExpanded] = useState(false);
-  const [mediaModalVisible, setMediaModalVisible] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState(null);
 
   useEffect(() => {
     setDisplayLimit(10);
@@ -1266,7 +1193,6 @@ const styles = StyleSheet.create({
   headerBtnActive: { backgroundColor: '#ede9fe' },
   headerBtnDanger: { backgroundColor: '#fef2f2' },
   headerBtnInfo: { backgroundColor: '#f0f9ff' },
-  headerBtnSuccess: { backgroundColor: '#ecfdf5' },
   headerBtnIcon: { fontSize: 16 },
 
   // LISTE
@@ -1693,6 +1619,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: 18, fontWeight: '700', color: '#1a1a2e' },
   modalClose: { fontSize: 22, color: '#94a3b8', fontWeight: 'bold' },
+
+  // ===== STATS GRID (vue d'ensemble) =====
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -1700,64 +1628,100 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   statItem: {
-    width: '48%',
+    flex: 1,
+    minWidth: '45%',
     backgroundColor: '#f8fafc',
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  statLabel: { fontSize: 12, color: '#64748b', marginBottom: 4 },
-  statValue: { fontSize: 20, fontWeight: '700', color: '#1e293b' },
+  statLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1e293b',
+  },
   statValueDanger: { color: '#ef4444' },
+
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#64748b',
-    marginBottom: 8,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 10,
     marginTop: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  tableRow2: {
+
+  // ===== NOUVEAU : Cartes de tables 2 par ligne =====
+  tablesCardsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingBottom: 20,
+  },
+  tableCard: {
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  tableCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  tableCardEmoji: {
+    fontSize: 14,
+  },
+  tableCardName: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  tableCardDivider: {
+    height: 1,
+    backgroundColor: '#f1f5f9',
+    marginBottom: 8,
+  },
+  tableCardRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    gap: 8,
   },
-  tableName: { fontSize: 13, color: '#1e293b', fontWeight: '500' },
-  tableInfo: { fontSize: 12, color: '#64748b' },
-
-  successBox: {
-    backgroundColor: '#f0fdf4',
-    borderWidth: 1,
-    borderColor: '#bbf7d0',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 12,
+  tableCardStat: {
+    flex: 1,
   },
-  errorBox: {
-    backgroundColor: '#fef2f2',
-    borderWidth: 1,
-    borderColor: '#fecaca',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    marginBottom: 12,
+  tableCardStatLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginBottom: 2,
   },
-  checkIaIcon: { fontSize: 32, marginBottom: 8 },
-  checkIaText: { fontSize: 14, fontWeight: '600', color: '#166534' },
-  tokenRow: {
-    padding: 10,
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    marginBottom: 4,
+  tableCardStatValue: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1e293b',
   },
-  tokenText: {
-    fontSize: 12,
-    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
-    color: '#6c63ff',
+  tableCardStatValueDanger: {
+    color: '#ef4444',
   },
 
   // GRAPHIQUE AGRANDI

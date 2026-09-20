@@ -6,16 +6,20 @@ import {
   TouchableOpacity,
   StatusBar,
   Modal,
-  Alert,Image
+  Alert,
+  Image,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+
 import DashboardScreen from './Dashboard';
 import Profil from './Profil';
-import FacturesScreen from './Factures'; // Importez votre composant
-import ChatScreen from './Chat'; // Importez votre composant
+import FacturesScreen from './Factures';
+import ChatScreen from './Chat';
+import OnboardingModal from './Onboarding';
 
 export const Header = ({ 
   title, 
+  showLogo = true, // 👈 NOUVEAU : Affiche le logo par défaut, ou le texte si false
   onBack, 
   rightIcon, 
   onRightPress, 
@@ -40,10 +44,10 @@ export const Header = ({
   onUserUpdated,
 }) => {
   const [dashboardVisible, setDashboardVisible] = useState(false);
-  const [facturesVisible, setFacturesVisible] = useState(false); // Nouvel état
-  const [chatVisible, setChatVisible] = useState(false); // Nouvel état
-
+  const [facturesVisible, setFacturesVisible] = useState(false);
+  const [chatVisible, setChatVisible] = useState(false);
   const [showProfilModal, setShowProfilModal] = useState(false);
+  const [onboardingVisible, setOnboardingVisible] = useState(false);
 
   const openDashboard = () => {
     if (!user) {
@@ -62,8 +66,6 @@ export const Header = ({
     if (onDashboardClose) onDashboardClose();
   };
 
-
-  // Nouvelles fonctions pour les factures
   const openFactures = () => {
     if (!user) {
       if (onLoginPress) onLoginPress();
@@ -80,7 +82,6 @@ export const Header = ({
     setFacturesVisible(false);
   };
 
-  // Chat IA
   const openChat = () => {
     if (!user) {
       if (onLoginPress) onLoginPress();
@@ -101,78 +102,104 @@ export const Header = ({
   return (
     <>
       <View style={styles.header}>
-  {onBack && (
-    <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-      <Ionicons name="arrow-back" size={24} color="#fff" />
-    </TouchableOpacity>
-  )}
-  <Text style={styles.headerTitle}>{title}</Text>
-  <View style={styles.headerIcons}>
-    {/* Si des icônes personnalisées sont fournies, on les affiche */}
-    {customRightIcons ? (
-      customRightIcons.map((icon, index) => (
-        <TouchableOpacity
-          key={index}
-          onPress={icon.onPress}
-          style={styles.iconBtn}
-        >
-          <Ionicons name={icon.name} size={22} color="#fff" />
-        </TouchableOpacity>
-      ))
-    ) : (
-      <>
-        {/* Boutons réservés aux utilisateurs connectés */}
-        {user && (
-          <>
-          {/* Bouton Tableau de bord */}
-            <TouchableOpacity onPress={openDashboard} style={styles.iconBtn}>
-              <Ionicons name="speedometer-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-
-            {/* Bouton Factures */}
-            <TouchableOpacity onPress={openFactures} style={styles.iconBtn}>
-              <Ionicons name="document-text-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-
-
-            {/* Bouton IA */}
-            <TouchableOpacity onPress={openChat} style={styles.iconBtn}>
-              <MaterialCommunityIcons name="robot-outline" size={23} color="#fff" />
-            </TouchableOpacity>
-
-             {/* Bouton Profil */}
-          <TouchableOpacity onPress={() => setShowProfilModal(true)} style={styles.iconBtn}>
-            {user?.photo ? (
-           <Image source={{ uri: user.photo }} style={{ width: 24, height: 24, borderRadius: 12 }} />
-             ) : (
-           <Ionicons name="person-outline" size={22} color="#fff" />
-            )}
+        {onBack && (
+          <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
-          </>
         )}
-
-        {/* Bouton connexion/déconnexion */}
-        {user ? (
-          <TouchableOpacity onPress={onLogoutPress} style={styles.userBtn}>
-            <Ionicons name="log-out-outline" size={22} color="#fff" />
-          </TouchableOpacity>
+        
+        {/* 👈 REMPLACEMENT DU TITRE PAR LE LOGO (avec fallback) */}
+        {showLogo ? (
+          <View style={styles.headerLeft}>
+            <View style={styles.logoCircle}>
+              <Text style={styles.logoLetter}>R</Text>
+            </View>
+            <Text style={styles.logoText}>{title}</Text>
+          </View>
         ) : (
-          <TouchableOpacity onPress={onLoginPress} style={styles.userBtn}>
-            <Ionicons name="person-outline" size={22} color="#fff" />
-          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{title}</Text>
         )}
-      </>
-    )}
+        
+        <View style={styles.headerIcons}>
+          {customRightIcons ? (
+            customRightIcons.map((icon, index) => (
+              <TouchableOpacity
+                key={index}
+                onPress={icon.onPress}
+                style={styles.iconBtn}
+              >
+                <Ionicons name={icon.name} size={22} color="#fff" />
+              </TouchableOpacity>
+            ))
+          ) : (
+            <>
+              {/* ========== BOUTON ONBOARDING (uniquement déconnecté) ========== */}
+              {!user && (
+                <TouchableOpacity 
+                  onPress={() => setOnboardingVisible(true)} 
+                  style={styles.iconBtn}
+                >
+                  <Ionicons name="rocket-outline" size={22} color="#fff" />
+                </TouchableOpacity>
+              )}
 
-    {rightIcon && (
-      <TouchableOpacity onPress={onRightPress} style={styles.iconSpacing}>
-        <Ionicons name={rightIcon} size={24} color="#fff" />
-      </TouchableOpacity>
-    )}
-  </View>
-</View>
+              {/* Boutons réservés aux utilisateurs connectés */}
+              {user && (
+                <>
+                  <TouchableOpacity onPress={openDashboard} style={styles.iconBtn}>
+                    <Ionicons name="speedometer-outline" size={22} color="#fff" />
+                  </TouchableOpacity>
 
-      {/* NOUVEAU: Modal Factures - Plein écran */}
+                  <TouchableOpacity onPress={openFactures} style={styles.iconBtn}>
+                    <Ionicons name="document-text-outline" size={22} color="#fff" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={openChat} style={styles.iconBtn}>
+                    <MaterialCommunityIcons name="robot-outline" size={23} color="#fff" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity onPress={() => setShowProfilModal(true)} style={styles.iconBtn}>
+                    {user?.photo ? (
+                      <Image 
+                        source={{ uri: user.photo }} 
+                        style={{ width: 24, height: 24, borderRadius: 12 }} 
+                      />
+                    ) : (
+                      <Ionicons name="person-outline" size={22} color="#fff" />
+                    )}
+                  </TouchableOpacity>
+                </>
+              )}
+
+              {/* Bouton connexion / déconnexion */}
+              {user ? (
+                <TouchableOpacity onPress={onLogoutPress} style={styles.userBtn}>
+                  <Ionicons name="log-out-outline" size={22} color="#fff" />
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity onPress={onLoginPress} style={styles.userBtn}>
+                  <Ionicons name="person-outline" size={22} color="#fff" />
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+
+          {rightIcon && (
+            <TouchableOpacity onPress={onRightPress} style={styles.iconSpacing}>
+              <Ionicons name={rightIcon} size={24} color="#fff" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* ========== MODAL ONBOARDING ========== */}
+      <OnboardingModal
+        visible={onboardingVisible}
+        onClose={() => setOnboardingVisible(false)}
+        colors={colors}
+      />
+
+      {/* Modal Factures */}
       <Modal
         visible={facturesVisible}
         animationType="slide"
@@ -190,7 +217,7 @@ export const Header = ({
         />
       </Modal>
 
-      {/* Modal Dashboard - Plein écran */}
+      {/* Modal Dashboard */}
       <Modal
         visible={dashboardVisible}
         animationType="slide"
@@ -206,19 +233,18 @@ export const Header = ({
         />
       </Modal>
 
-      {/* Modal Rapports - Plein écran */}
+      {/* Modal Profil */}
       <Profil
-  visible={showProfilModal}
-  onClose={() => setShowProfilModal(false)}
-  societeId={societeId}
-  user={user}
-  onProfilUpdated={(updated) => {
-    // Mettre à jour le user parent si nécessaire
-    if (onUserUpdated) onUserUpdated(updated);
-  }}
-/>
+        visible={showProfilModal}
+        onClose={() => setShowProfilModal(false)}
+        societeId={societeId}
+        user={user}
+        onProfilUpdated={(updated) => {
+          if (onUserUpdated) onUserUpdated(updated);
+        }}
+      />
 
-      {/* NOUVEAU: Modal Chat IA- Plein écran */}
+      {/* Modal Chat IA */}
       <Modal
         visible={chatVisible}
         animationType="slide"
@@ -249,6 +275,33 @@ const styles = StyleSheet.create({
     elevation: 4,
     zIndex: 10,
   },
+  
+  // 👇 NOUVEAUX STYLES POUR LE LOGO ROUAH
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  logoLetter: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  logoText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  // 👆 FIN DES NOUVEAUX STYLES
+
   headerTitle: { 
     color: '#fff', 
     fontSize: 20, 

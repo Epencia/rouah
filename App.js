@@ -16,7 +16,6 @@ import {
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
 import AccueilScreen, { ClientDetail, FournisseurDetail } from './screens/Accueil';
 import ArticlesScreen from './screens/Articles';
 import VenteScreen from './screens/Vente';
@@ -25,6 +24,7 @@ import ParametresScreen from './screens/Parametres';
 import { Header } from './screens/Header';
 import InscriptionModal from './screens/Inscription';
 import VersionGate from './screens/Versions';
+import {registerForPushNotifications,setupNotificationListeners,NotificationModal,} from './screens/Notifications';
 
 const { width, height } = Dimensions.get('window');
 
@@ -227,9 +227,7 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
               </View>
             </View>
 
-            <View style={styles.footerText}>
-              <Text style={styles.footerTextContent}>© 2026 Rouah - Tous droits réservés</Text>
-            </View>
+            
           </ScrollView>
         </View>
       </View>
@@ -460,6 +458,8 @@ export default function App() {
   const [versionOk, setVersionOk] = useState(false);
   const [forgotVisible, setForgotVisible] = useState(false); 
   const [permissions, setPermissions] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [notificationModalVisible, setNotificationModalVisible] = useState(false);
 
   const bottomTabs = [
     { key: 'accueil', label: 'Accueil', icon: 'home', iconActive: 'home', requiresAuth: false },
@@ -553,27 +553,63 @@ if (perms) setPermissions(JSON.parse(perms));
     }
   }, [societeId]);
 
+  // ============================================================
+// 👈 NOUVEAU : Écoute des notifications push
+// ============================================================
+useEffect(() => {
+  const cleanup = setupNotificationListeners({
+    onNotificationReceived: (notif) => {
+      console.log('📱 Notification reçue:', notif.title);
+      setNotifications((prev) => [notif, ...prev].slice(0, 50));
+    },
+    onNotificationResponse: (notif) => {
+      console.log('👆 Notification tapée:', notif.title);
+      setNotifications((prev) => [notif, ...prev].slice(0, 50));
+      // Ouvrir le modal automatiquement
+      setTimeout(() => setNotificationModalVisible(true), 300);
+    },
+  });
+
+  return cleanup;
+}, []);
+
   // ============ GESTION DE LA CONNEXION ============
-  const handleLoginSuccess = async (userData) => {
-    setUser(userData);
-    const lien = (userData.liens && userData.liens[0]) || null;
-    const sid = lien?.societe_id || userData.societe_id || null;
-    const bid = lien?.boutique_id || null;
-    
-    setSocieteId(sid);
-    setActiveBoutiqueId(bid);
-    setPermissions(userData.permissions || []);
-await AsyncStorage.setItem('@rouah_permissions', JSON.stringify(userData.permissions || []));
-    
-    // Sauvegarder dans AsyncStorage
-    if (sid) await AsyncStorage.setItem(STORAGE_KEYS.SOCIETE_ID, sid);
-    if (bid) await AsyncStorage.setItem(STORAGE_KEYS.BOUTIQUE_ID, bid);
-    
-    
-    if (!bid && sid) {
-      setTimeout(() => loadBoutiques(), 500);
+ const handleLoginSuccess = async (userData) => {
+  setUser(userData);
+  const lien = (userData.liens && userData.liens[0]) || null;
+  const sid = lien?.societe_id || userData.societe_id || null;
+  const bid = lien?.boutique_id || null;
+  
+  setSocieteId(sid);
+  setActiveBoutiqueId(bid);
+  setPermissions(userData.permissions || []);
+  await AsyncStorage.setItem('@rouah_permissions', JSON.stringify(userData.permissions || []));
+  
+  if (sid) await AsyncStorage.setItem(STORAGE_KEYS.SOCIETE_ID, sid);
+  if (bid) await AsyncStorage.setItem(STORAGE_KEYS.BOUTIQUE_ID, bid);
+  
+  if (!bid && sid) {
+    setTimeout(() => loadBoutiques(), 500);
+  }
+  // ============================================================
+  // 👈 NOUVEAU : Enregistrer le push token APRÈS la connexion
+  // ============================================================
+  if (userData.utilisateur_id) {
+    try {
+      console.log('🔔 Enregistrement du push token pour:', userData.utilisateur_id);
+      const token = await registerForPushNotifications(userData.utilisateur_id);
+      
+      if (token) {
+        console.log('✅ Push notifications activées');
+        await AsyncStorage.setItem('@rouah_push_token', token);
+      } else {
+        console.log('⚠️ Push notifications non activées');
+      }
+    } catch (e) {
+      console.warn('❌ Erreur enregistrement push:', e.message);
     }
-  };
+  }
+};
 
  // ============ GESTION DE LA DÉCONNEXION ============
 const handleLogout = async () => {
@@ -889,6 +925,24 @@ const handleLogout = async () => {
       onReady={() => setVersionOk(true)}
       onBlocked={() => setVersionOk(false)}
     />
+
+    {/* 👈 NOUVEAU : Modal des notifications */}
+<NotificationModal
+  visible={notificationModalVisible}
+  onClose={() => setNotificationModalVisible(false)}
+  notifications={notifications}
+  onNotificationPress={(notif) => {
+    // Action au clic sur une notification
+    console.log('Notification cliquée:', notif);
+    
+    // Si la notification contient une action spécifique
+    if (notif.data?.action === 'open_dashboard') {
+      setNotificationModalVisible(false);
+      // Ouvrir le dashboard par exemple
+    }
+  }}
+  onClearAll={() => setNotifications([])}
+/>
 
     </SafeAreaView>
     </SafeAreaProvider>
