@@ -43,6 +43,7 @@ export default function Profil({
   societeId,
   user,
   onProfilUpdated,
+  onLogout,     // ⭐ NOUVEAU : callback de déconnexion
 }) {
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -98,7 +99,6 @@ export default function Profil({
     }
   }, [user]);
 
-  // Recharge à chaque ouverture du modal
   useEffect(() => {
     if (visible) {
       setEditMode(false);
@@ -189,7 +189,7 @@ export default function Profil({
             if (json.success) {
               setPhoto(null);
               setPhotoType(null);
-              if (onProfilUpdated) onProfilUpdated({ photo: null,type: null });
+              if (onProfilUpdated) onProfilUpdated({ photo: null, type: null });
             } else {
               Alert.alert('Erreur', json.message);
             }
@@ -254,45 +254,78 @@ export default function Profil({
   // ============================================================
   // MOT DE PASSE
   // ============================================================
- const savePassword = async () => {
-  if (!pwdForm.nouveau_mdp) {
-    Alert.alert('Erreur', 'Le nouveau mot de passe est obligatoire');
-    return;
-  }
-  if (pwdForm.nouveau_mdp.length < 6) {
-    Alert.alert('Erreur', 'Le mot de passe doit faire au moins 6 caractères');
-    return;
-  }
-  if (pwdForm.nouveau_mdp !== pwdForm.confirm_mdp) {
-    Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
-    return;
-  }
-
-  setPwdSaving(true);
-  try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'change_password',
-        utilisateur_id: user.utilisateur_id,
-        nouveau_mdp: pwdForm.nouveau_mdp,
-      }),
-    });
-    const json = await res.json();
-    if (json.success) {
-      Alert.alert('Succès', json.message);
-      setPwdModal(false);
-      setPwdForm({ nouveau_mdp: '', confirm_mdp: '' });
-    } else {
-      Alert.alert('Erreur', json.message);
+  const savePassword = async () => {
+    if (!pwdForm.nouveau_mdp) {
+      Alert.alert('Erreur', 'Le nouveau mot de passe est obligatoire');
+      return;
     }
-  } catch (e) {
-    Alert.alert('Erreur', e.message);
-  } finally {
-    setPwdSaving(false);
-  }
-};
+    if (pwdForm.nouveau_mdp.length < 6) {
+      Alert.alert('Erreur', 'Le mot de passe doit faire au moins 6 caractères');
+      return;
+    }
+    if (pwdForm.nouveau_mdp !== pwdForm.confirm_mdp) {
+      Alert.alert('Erreur', 'Les mots de passe ne correspondent pas');
+      return;
+    }
+
+    setPwdSaving(true);
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'change_password',
+          utilisateur_id: user.utilisateur_id,
+          nouveau_mdp: pwdForm.nouveau_mdp,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        Alert.alert('Succès', json.message);
+        setPwdModal(false);
+        setPwdForm({ nouveau_mdp: '', confirm_mdp: '' });
+      } else {
+        Alert.alert('Erreur', json.message);
+      }
+    } catch (e) {
+      Alert.alert('Erreur', e.message);
+    } finally {
+      setPwdSaving(false);
+    }
+  };
+
+  // ============================================================
+  // ⭐ DÉCONNEXION
+  // ============================================================
+  const handleLogout = () => {
+    Alert.alert(
+      'Déconnexion',
+      'Voulez-vous vraiment vous déconnecter ?',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Déconnexion',
+          style: 'destructive',
+          onPress: () => {
+            // Fermer le modal profil avant de déconnecter
+            if (onClose) onClose();
+
+            // Déclencher la déconnexion côté parent
+            setTimeout(() => {
+              if (typeof onLogout === 'function') {
+                onLogout();
+              } else {
+                Alert.alert(
+                  'Info',
+                  'La déconnexion doit être gérée par le composant parent (prop onLogout).'
+                );
+              }
+            }, 150);
+          },
+        },
+      ]
+    );
+  };
 
   // ============================================================
   // RENDU
@@ -446,6 +479,28 @@ export default function Profil({
                 </TouchableOpacity>
               </View>
 
+              {/* ⭐ ===== DÉCONNEXION ===== */}
+              <TouchableOpacity
+                style={styles.logoutCard}
+                onPress={handleLogout}
+                activeOpacity={0.85}
+              >
+                <View style={styles.logoutLeft}>
+                  <View style={styles.logoutIconWrapper}>
+                    <Ionicons name="log-out-outline" size={22} color={COLORS.danger} />
+                  </View>
+                  <View>
+                    <Text style={styles.logoutTitle}>Déconnexion</Text>
+                    <Text style={styles.logoutSubtitle}>
+                      Se déconnecter de ce compte
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color={COLORS.danger} />
+              </TouchableOpacity>
+
+              
+
               <View style={{ height: 30 }} />
             </ScrollView>
           </KeyboardAvoidingView>
@@ -453,41 +508,39 @@ export default function Profil({
 
         {/* ===== MODAL MOT DE PASSE ===== */}
         <Modal visible={pwdModal} animationType="slide" transparent onRequestClose={() => setPwdModal(false)}>
-  <View style={styles.pwdOverlay}>
-    <View style={styles.pwdContent}>
-      <View style={styles.pwdHeader}>
-        <Text style={styles.pwdTitle}>Changer le mot de passe</Text>
-        <TouchableOpacity onPress={() => setPwdModal(false)}>
-          <Ionicons name="close-circle" size={28} color={COLORS.muted} />
-        </TouchableOpacity>
-      </View>
+          <View style={styles.pwdOverlay}>
+            <View style={styles.pwdContent}>
+              <View style={styles.pwdHeader}>
+                <Text style={styles.pwdTitle}>Changer le mot de passe</Text>
+                <TouchableOpacity onPress={() => setPwdModal(false)}>
+                  <Ionicons name="close-circle" size={28} color={COLORS.muted} />
+                </TouchableOpacity>
+              </View>
 
-      {/* ❌ Plus de champ "Ancien mot de passe" */}
+              <Field label="Nouveau mot de passe" value={pwdForm.nouveau_mdp}
+                     onChange={(v) => setPwdForm({ ...pwdForm, nouveau_mdp: v })}
+                     secureTextEntry />
+              <Field label="Confirmer le nouveau mot de passe" value={pwdForm.confirm_mdp}
+                     onChange={(v) => setPwdForm({ ...pwdForm, confirm_mdp: v })}
+                     secureTextEntry />
 
-      <Field label="Nouveau mot de passe" value={pwdForm.nouveau_mdp}
-             onChange={(v) => setPwdForm({ ...pwdForm, nouveau_mdp: v })}
-             secureTextEntry />
-      <Field label="Confirmer le nouveau mot de passe" value={pwdForm.confirm_mdp}
-             onChange={(v) => setPwdForm({ ...pwdForm, confirm_mdp: v })}
-             secureTextEntry />
-
-      <TouchableOpacity
-        style={[styles.saveBtn, { marginTop: 16, width: '100%', justifyContent: 'center' }]}
-        onPress={savePassword}
-        disabled={pwdSaving}
-      >
-        {pwdSaving ? (
-          <ActivityIndicator color="#fff" size="small" />
-        ) : (
-          <>
-            <Ionicons name="checkmark" size={18} color="#fff" />
-            <Text style={styles.saveBtnText}>Valider</Text>
-          </>
-        )}
-      </TouchableOpacity>
-    </View>
-  </View>
-</Modal>
+              <TouchableOpacity
+                style={[styles.saveBtn, { marginTop: 16, width: '100%', justifyContent: 'center' }]}
+                onPress={savePassword}
+                disabled={pwdSaving}
+              >
+                {pwdSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={18} color="#fff" />
+                    <Text style={styles.saveBtnText}>Valider</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
       </View>
     </Modal>
   );
@@ -630,6 +683,51 @@ const styles = StyleSheet.create({
   },
   securityRowLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   securityText: { fontSize: 14, color: COLORS.text, fontWeight: '600' },
+
+  // ⭐ ===== DÉCONNEXION =====
+  logoutCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FEF2F2',       // rouge très clair
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',           // bordure rouge clair
+  },
+  logoutLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  logoutIconWrapper: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.danger,
+  },
+  logoutSubtitle: {
+    fontSize: 12,
+    color: '#B91C1C',
+    marginTop: 2,
+  },
+
+  // Version
+  versionText: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: COLORS.muted,
+    marginTop: 8,
+    marginBottom: 4,
+  },
 
   // ===== MODAL MOT DE PASSE =====
   pwdOverlay: {

@@ -22,19 +22,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ============ IMPORTS ============
 import { QRCodeScanner } from './QRCode';
-import RapportsCredits from './RapportsCredits';
-import AlbumsScreen from './Albums';
 import CarteVisite from './CarteVisite';
 import CatalogueScreen from './Catalogue';
 import RapportsScreen from './Rapports';
-import Parrainage from './Parrainages';
+import NotificationsScreen from './Notifications';
 import { offlineFetch } from '../services/offlineApi';
 
 // ============ CONSTANTES API ============
 const API_URL = 'https://rouah.net/api/api-parametre.php';
 const QR_API_URL = 'https://rouah.net/api/api-qr.php';
 
-const ROLES = ['Superviseur', 'Administrateur', 'Caisse', 'Comptable'];
+const ROLES = ['Gerant', 'Comptable', 'Caisse'];
 const CAISSE_TYPES = ['caisse', 'banque', 'mobile money', 'autres'];
 const ADRESSE_TYPES = ['facturation', 'livraison'];
 
@@ -76,24 +74,15 @@ export default function ParametresScreen({
   // Modal QR Code
   const [qrModalVisible, setQrModalVisible] = useState(false);
   const [currentQrUrl, setCurrentQrUrl] = useState('');
-
-  // Rapports crédits
-  const [showCreditModal, setShowCreditModal] = useState(false);
-
-  // Albums / Promotions
-  const [showAlbumsModal, setShowAlbumsModal] = useState(false);
-
   // Carte de visite
   const [showCarteModal, setShowCarteModal] = useState(false);
-
   // Catalogue
   const [showCatalogueModal, setShowCatalogueModal] = useState(false);
-
   // Rapports
   const [showRapportModal, setShowRapportModal] = useState(false);
 
-  // Parrainage
-  const [showParrainageModal, setShowParrainageModal] = useState(false);
+    // Notifications
+  const [showNotificationsModal, setShowNotificationsModal] = useState(false);
   
   // State local pour la boutique active
   const [localActiveBoutiqueId, setLocalActiveBoutiqueId] = useState(propActiveBoutiqueId || null);
@@ -384,7 +373,7 @@ export default function ParametresScreen({
     const defaults = {
       boutique: { nom: '', type: 'boutique', telephone: '', email: '', ville: '', adresse: '' },
       utilisateur: { nom_prenom: '', login: '', mdp: '', telephone: '', email: '', role: 'Caisse', boutique_id: '' },
-      taxe: { nom: '', taux: '18', type: 'tva' },
+      taxe: { nom: '', taux: '18', categorie: 'plus', type: 'tva' },
       devise: { devise_id: '', nom: '' },
       caisse: { nom: '', type: 'caisse', boutique_id: '' },
       charge: { nom: '' },
@@ -487,14 +476,20 @@ export default function ParametresScreen({
         }
         action = formMode === 'create' ? 'create_utilisateur' : 'update_utilisateur';
       } else if (formEntity === 'taxe') {
-        if (!form.nom?.trim()) {
-          Alert.alert('Erreur', 'Nom obligatoire');
-          setSaving(false);
-          return;
-        }
-        payload.taux = parseFloat(form.taux) || 0;
-        action = formMode === 'create' ? 'create_taxe' : 'update_taxe';
-      } else if (formEntity === 'devise') {
+  if (!form.nom?.trim()) {
+    Alert.alert('Erreur', 'Nom obligatoire');
+    setSaving(false);
+    return;
+  }
+  if (!form.categorie || !['plus', 'moins'].includes(form.categorie)) {
+    Alert.alert('Erreur', 'Veuillez choisir la catégorie (Plus ou Moins)');
+    setSaving(false);
+    return;
+  }
+  payload.taux = parseFloat(form.taux) || 0;
+  payload.categorie = form.categorie;
+  action = formMode === 'create' ? 'create_taxe' : 'update_taxe';
+} else if (formEntity === 'devise') {
         if (!form.devise_id?.trim() || !form.nom?.trim()) {
           Alert.alert('Erreur', 'Code et nom obligatoires');
           setSaving(false);
@@ -798,29 +793,89 @@ export default function ParametresScreen({
         )}
 
         {/* ===== TAXES ===== */}
-        {renderSectionHeader('Taxes', 'taxes', 'pricetags-outline', () => openCreate('taxe'))}
-        {sectionsOpen.taxes && (
-          <>
-            {taxes.map((t) => (
-              <View key={t.taxe_id} style={styles.itemCard}>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemTitle}>{t.nom}</Text>
-                  <Text style={styles.itemPrice}>{t.taux}%</Text>
-                </View>
-                <Text style={styles.itemSub}>{t.type}</Text>
-                <View style={styles.itemActions}>
-                  <TouchableOpacity onPress={() => openEdit('taxe', t)}>
-                    <Text style={styles.actionEdit}>Modifier</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => confirmDelete('taxe', t.taxe_id, t.nom)}>
-                    <Text style={styles.actionDelete}>Supprimer</Text>
-                  </TouchableOpacity>
-                </View>
+{renderSectionHeader('Taxes', 'taxes', 'pricetags-outline', () => openCreate('taxe'))}
+{sectionsOpen.taxes && (
+  <>
+    {taxes.map((t) => {
+      const isPlus = t.categorie !== 'moins';
+      return (
+        <View key={t.taxe_id} style={styles.itemCard}>
+          <View style={styles.itemHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+              <View
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: isPlus ? '#dcfce7' : '#fee2e2',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Ionicons
+                  name={isPlus ? 'add' : 'remove'}
+                  size={18}
+                  color={isPlus ? '#16a34a' : '#dc2626'}
+                />
               </View>
-            ))}
-            {taxes.length === 0 && <Text style={styles.emptyText}>Aucune taxe</Text>}
-          </>
-        )}
+              <Text style={styles.itemTitle} numberOfLines={1}>
+                {t.nom}
+              </Text>
+            </View>
+            <Text
+              style={[
+                styles.itemPrice,
+                { color: isPlus ? '#16a34a' : '#dc2626' },
+              ]}
+            >
+              {isPlus ? '+' : '-'}{t.taux}%
+            </Text>
+          </View>
+
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+            <View
+              style={[
+                styles.statusBadge,
+                {
+                  backgroundColor: isPlus ? '#dcfce7' : '#fee2e2',
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.statusBadgeText,
+                  { color: isPlus ? '#16a34a' : '#dc2626' },
+                ]}
+              >
+                {isPlus ? 'TAXE (+)' : 'REMISE (-)'}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.statusBadge,
+                { backgroundColor: '#f0f0f0' },
+              ]}
+            >
+              <Text style={[styles.statusBadgeText, { color: '#666' }]}>
+                {(t.type || '—').toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.itemActions}>
+            <TouchableOpacity onPress={() => openEdit('taxe', t)}>
+              <Text style={styles.actionEdit}>Modifier</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => confirmDelete('taxe', t.taxe_id, t.nom)}>
+              <Text style={styles.actionDelete}>Supprimer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    })}
+    {taxes.length === 0 && <Text style={styles.emptyText}>Aucune taxe</Text>}
+  </>
+)}
 
         {/* ===== DEVISES ===== */}
         {renderSectionHeader('Devises', 'devises', 'cash-outline', () => openCreate('devise'))}
@@ -925,14 +980,6 @@ export default function ParametresScreen({
         {/* ===== PARAMÈTRES GÉNÉRAUX ===== */}
         <Text style={[styles.settingsSection, { marginTop: 20 }]}>Paramètres généraux</Text>
 
-        {/* ===== PROMOTIONS / ALBUMS ===== */}
-        <TouchableOpacity style={styles.settingsItem} onPress={() => setShowAlbumsModal(true)}>
-          <View style={styles.settingsItemLeft}>
-            <Ionicons name="images-outline" size={24} color="#075E54" />
-            <Text style={styles.settingsText}>Albums</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
-        </TouchableOpacity>
 
         {/* ===== CATALOGUES ===== */}
         <TouchableOpacity style={styles.settingsItem} onPress={() => setShowCatalogueModal(true)}>
@@ -952,14 +999,7 @@ export default function ParametresScreen({
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
 
-        {/* ===== PARRAINAGES ===== */}
-        <TouchableOpacity style={styles.settingsItem} onPress={() => setShowParrainageModal(true)}>
-          <View style={styles.settingsItemLeft}>
-            <Ionicons name="person-add-outline" size={24} color="#075E54" />
-            <Text style={styles.settingsText}>Parrainages</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color="#999" />
-        </TouchableOpacity>
+
 
          {/* ===== RAPPORTS ===== */}
         <TouchableOpacity style={styles.settingsItem} onPress={() => setShowRapportModal(true)}>
@@ -970,11 +1010,13 @@ export default function ParametresScreen({
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
 
-         {/* ===== RAPPORTS DE CREDITS ===== */}
-        <TouchableOpacity style={styles.settingsItem} onPress={() => setShowCreditModal(true)}>
+
+
+                {/* ===== NOTIFICATIONS ===== */}
+        <TouchableOpacity style={styles.settingsItem} onPress={() => setShowNotificationsModal(true)}>
           <View style={styles.settingsItemLeft}>
-            <Ionicons name="document-text-outline" size={24} color="#075E54" />
-            <Text style={styles.settingsText}>Rapports de crédits</Text>
+            <Ionicons name="notifications-outline" size={24} color="#075E54" />
+            <Text style={styles.settingsText}>Notifications</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="#999" />
         </TouchableOpacity>
@@ -1045,23 +1087,6 @@ export default function ParametresScreen({
         </View>
       </Modal>
 
-       {/* ===== MODAL PARRAINAGE ===== */}
-      <Modal 
-        visible={showParrainageModal} 
-        animationType="slide" 
-        statusBarTranslucent={true}
-  navigationBarTranslucent={true}
-        onRequestClose={() => setShowParrainageModal(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: '#f5f7fb' }}>
-          <Parrainage
-            societeId={societeId}
-             user={user}
-            onBack={() => setShowParrainageModal(false)}
-            isModal={true}
-          />
-        </View>
-      </Modal>
 
        {/* ===== MODAL RAPPORTS ===== */}
       <Modal 
@@ -1081,72 +1106,43 @@ export default function ParametresScreen({
         </View>
       </Modal>
 
-      {/* ===== MODAL RAPPORT DE CRÉDIT ===== */}
-      <Modal 
-        visible={showCreditModal} 
-        animationType="slide" 
+  
+
+       {/* ===== MODAL NOTIFICATIONS ===== */}
+      <Modal
+        visible={showNotificationsModal}
+        animationType="slide"
         statusBarTranslucent={true}
-  navigationBarTranslucent={true}
-        onRequestClose={() => setShowCreditModal(false)}
+        navigationBarTranslucent={true}
+        onRequestClose={() => setShowNotificationsModal(false)}
       >
         <View style={{ flex: 1, backgroundColor: '#f5f7fb' }}>
-          <RapportsCredits 
+          <NotificationsScreen
             societeId={societeId}
-            onClose={() => setShowCreditModal(false)}
-            user={user}
+            utilisateurId={user?.utilisateur_id}
+            onBack={() => setShowNotificationsModal(false)}
             isModal={true}
           />
         </View>
       </Modal>
 
-      {/* ===== MODAL ALBUMS / PROMOTIONS ===== */}
-      <Modal
-        visible={showAlbumsModal}
-        animationType="slide"
-        statusBarTranslucent={true}
-  navigationBarTranslucent={true}
-        onRequestClose={() => setShowAlbumsModal(false)}
-      >
-        <View style={styles.albumsModalWrapper}>
-          <View style={styles.albumsModalHeader}>
-            <Text style={styles.albumsModalTitle}>Albums</Text>
-            <TouchableOpacity onPress={() => setShowAlbumsModal(false)}>
-              <Ionicons name="close" size={26} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <View style={{ flex: 1 }}>
-            <AlbumsScreen
-              societeId={societeId}
-              boutiqueId={localActiveBoutiqueId}
-              user={user}
-              onChanged={() => {}}
-            />
-          </View>
-        </View>
-      </Modal>
 
       {/* ===== MODAL CARTE DE VISITE ===== */}
       <Modal
         visible={showCarteModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
+         animationType="slide"
+        statusBarTranslucent={true}
+        navigationBarTranslucent={true}
         onRequestClose={() => setShowCarteModal(false)}
       >
-        <View style={styles.albumsModalWrapper}>
-          <View style={styles.albumsModalHeader}>
-            <Text style={styles.albumsModalTitle}>Carte de visite</Text>
-            <TouchableOpacity onPress={() => setShowCarteModal(false)}>
-              <Ionicons name="close" size={26} color="#fff" />
-            </TouchableOpacity>
-          </View>
-          <View style={{ flex: 1 }}>
+          <View style={{ flex: 1, backgroundColor: '#f5f7fb' }}>
             <CarteVisite
               societeNom={societe?.nom || 'Ma Société'}
               sigle={societe?.sigle || ''}
               catalogueUrl={`https://rouah.net/app/catalogue/${societe?.societe_id}`}
               onColorChange={(color) => console.log(color.id)}
+              onBack={() => setShowCarteModal(false)}
             />
-          </View>
         </View>
       </Modal>
 
@@ -1176,6 +1172,8 @@ export default function ParametresScreen({
           </View>
         </View>
       </Modal>
+
+           
 
       {/* ===== MODAL FORMULAIRE ===== */}
       <Modal visible={showForm} animationType="slide" statusBarTranslucent={true}
@@ -1315,14 +1313,48 @@ export default function ParametresScreen({
                 )}
                 <Text style={styles.modalLabel}>Mot de passe {formMode === 'edit' ? '(laisser vide = inchangé)' : '*'}</Text>
                 <TextInput style={styles.modalInput} value={form.mdp || ''} onChangeText={(v) => setF('mdp', v)} secureTextEntry placeholderTextColor="#999" />
-                <Text style={styles.modalLabel}>Rôle</Text>
-                <View style={styles.chipsRow}>
-                  {ROLES.map((r) => (
-                    <TouchableOpacity key={r} style={[styles.chip, form.role === r && styles.chipActive]} onPress={() => setF('role', r)}>
-                      <Text style={[styles.chipText, form.role === r && styles.chipTextActive]}>{r}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                {/* Rôle */}
+<Text style={styles.modalLabel}>Rôle</Text>
+<View style={styles.chipsRow}>
+  {(() => {
+    // ⭐ Construire la liste des rôles disponibles
+    const roleActuel = form.role;
+    const rolesDisponibles = [...ROLES];
+    
+    // Si le rôle actuel n'est pas dans la liste standard (ex: Superviseur, Administrateur),
+    // on l'ajoute pour ne pas le perdre
+    if (roleActuel && !rolesDisponibles.includes(roleActuel)) {
+      rolesDisponibles.unshift(roleActuel);
+    }
+    
+    return rolesDisponibles.map((r) => {
+      const isLegacy = !ROLES.includes(r); // Superviseur / Administrateur
+      const isActive = form.role === r;
+      
+      return (
+        <TouchableOpacity
+          key={r}
+          style={[
+            styles.chip,
+            isActive && styles.chipActive,
+            isLegacy && !isActive && { backgroundColor: '#fef3c7', borderWidth: 1, borderColor: '#f59e0b' },
+          ]}
+          onPress={() => setF('role', r)}
+        >
+          <Text
+            style={[
+              styles.chipText,
+              isActive && styles.chipTextActive,
+              isLegacy && !isActive && { color: '#92400e' },
+            ]}
+          >
+            {r}{isLegacy ? ' 🔒' : ''}
+          </Text>
+        </TouchableOpacity>
+      );
+    });
+  })()}
+</View>
                 <Text style={styles.modalLabel}>Boutique</Text>
                 <View style={styles.chipsRow}>
                   <TouchableOpacity style={[styles.chip, !form.boutique_id && styles.chipActive]} onPress={() => setF('boutique_id', null)}>
@@ -1413,22 +1445,122 @@ export default function ParametresScreen({
             )}
 
             {/* Taxe */}
-            {formEntity === 'taxe' && (
-              <>
-                <Text style={styles.modalLabel}>Nom *</Text>
-                <TextInput style={styles.modalInput} value={form.nom || ''} onChangeText={(v) => setF('nom', v)} placeholderTextColor="#999" />
-                <Text style={styles.modalLabel}>Taux (%)</Text>
-                <TextInput style={styles.modalInput} value={String(form.taux ?? '')} onChangeText={(v) => setF('taux', v)} keyboardType="numeric" placeholderTextColor="#999" />
-                <Text style={styles.modalLabel}>Type</Text>
-                <View style={styles.chipsRow}>
-                  {['tva', 'remise', 'rabais', 'ristourne', 'frais'].map((t) => (
-                    <TouchableOpacity key={t} style={[styles.chip, form.type === t && styles.chipActive]} onPress={() => setF('type', t)}>
-                      <Text style={[styles.chipText, form.type === t && styles.chipTextActive]}>{t}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </>
+{formEntity === 'taxe' && (
+  <>
+    <Text style={styles.modalLabel}>Nom *</Text>
+    <TextInput
+      style={styles.modalInput}
+      value={form.nom || ''}
+      onChangeText={(v) => setF('nom', v)}
+      placeholder="Ex: TVA 18%, Remise fidélité..."
+      placeholderTextColor="#999"
+    />
+
+    <Text style={styles.modalLabel}>Taux (%)</Text>
+    <TextInput
+      style={styles.modalInput}
+      value={String(form.taux ?? '')}
+      onChangeText={(v) => setF('taux', v)}
+      keyboardType="numeric"
+      placeholderTextColor="#999"
+    />
+
+    {/* 👇 NOUVELLE SECTION : Catégorie */}
+    <Text style={styles.modalLabel}>Catégorie *</Text>
+    <Text
+      style={{
+        fontSize: 12,
+        color: '#999',
+        marginBottom: 10,
+        lineHeight: 16,
+      }}
+    >
+      Choisissez si cette taxe augmente le TTC (ex: TVA) ou le réduit (ex: Remise).
+    </Text>
+
+    <View style={styles.chipsRow}>
+      {[
+        {
+          key: 'plus',
+          label: 'Plus (+)',
+          desc: 'Augmente le TTC',
+          icon: 'add-circle',
+          color: '#16a34a',
+          bg: '#dcfce7',
+        },
+        {
+          key: 'moins',
+          label: 'Moins (-)',
+          desc: 'Réduit le TTC',
+          icon: 'remove-circle',
+          color: '#dc2626',
+          bg: '#fee2e2',
+        },
+      ].map((c) => {
+        const isSelected = form.categorie === c.key;
+        return (
+          <TouchableOpacity
+            key={c.key}
+            style={{
+              flex: 1,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingVertical: 12,
+              paddingHorizontal: 12,
+              borderRadius: 12,
+              borderWidth: 2,
+              borderColor: isSelected ? c.color : '#e5e7eb',
+              backgroundColor: isSelected ? c.bg : '#fafafa',
+            }}
+            onPress={() => setF('categorie', c.key)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name={c.icon} size={22} color={isSelected ? c.color : '#999'} />
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontSize: 13,
+                  fontWeight: '700',
+                  color: isSelected ? c.color : '#666',
+                }}
+              >
+                {c.label}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 10,
+                  color: isSelected ? c.color : '#999',
+                  marginTop: 1,
+                }}
+              >
+                {c.desc}
+              </Text>
+            </View>
+            {isSelected && (
+              <Ionicons name="checkmark-circle" size={18} color={c.color} />
             )}
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+
+    <Text style={[styles.modalLabel, { marginTop: 16 }]}>Type</Text>
+    <View style={styles.chipsRow}>
+      {['tva', 'remise', 'rabais', 'ristourne', 'frais'].map((t) => (
+        <TouchableOpacity
+          key={t}
+          style={[styles.chip, form.type === t && styles.chipActive]}
+          onPress={() => setF('type', t)}
+        >
+          <Text style={[styles.chipText, form.type === t && styles.chipTextActive]}>
+            {t}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+  </>
+)}
 
             {/* Devise */}
             {formEntity === 'devise' && (

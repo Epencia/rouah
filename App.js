@@ -11,7 +11,7 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
-  Dimensions,
+  Dimensions, Linking
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,7 +24,13 @@ import ParametresScreen from './screens/Parametres';
 import { Header } from './screens/Header';
 import InscriptionModal from './screens/Inscription';
 import VersionGate from './screens/Versions';
-import {registerForPushNotifications,setupNotificationListeners,NotificationModal,} from './screens/Notifications';
+import {
+  registerForPushNotifications,
+  setupNotificationListeners,
+  NotificationModal,
+  useNotificationHandler,
+} from './screens/Notifications';
+import WebViewModal from './screens/Webview';
 
 const { width, height } = Dimensions.get('window');
 
@@ -48,12 +54,11 @@ const TAB_TO_MODULE = {
   parametres: 'Parametres',
 };
 
-// Retourne true si l'onglet est autorisé
 const isTabAllowed = (tabKey, permissions) => {
-  if (!permissions?.length) return true;                    // aucune permission → tout OK
+  if (!permissions?.length) return true;
   const module = TAB_TO_MODULE[tabKey];
-  const perm = permissions.find(p => p.module === module);  // cherche la règle
-  return perm ? perm.action === 'Oui' : true;               // pas de règle → OK
+  const perm = permissions.find(p => p.module === module);
+  return perm ? perm.action === 'Oui' : true;
 };
 
 // ============ COMPOSANT LOGIN MODAL ============
@@ -78,15 +83,13 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ login: login.trim(), mdp }),
       });
-      
+
       const data = await response.json();
 
       if (data.success) {
-        // Sauvegarder les données de session
         await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
         await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, data.token);
-        
-        // 👇 NOUVEAU : sauvegarder la session serveur
+
         if (data.session_id) {
           await AsyncStorage.setItem('@rouah_session_id', data.session_id);
           console.log('💾 session_id sauvegardé:', data.session_id);
@@ -96,17 +99,17 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
         if (data.session_token) {
           await AsyncStorage.setItem('@rouah_session_token', data.session_token);
         }
-        
+
         const lien = (data.liens && data.liens[0]) || null;
         const sid = lien?.societe_id || data.user?.societe_id || null;
         const bid = lien?.boutique_id || null;
-        
+
         if (sid) await AsyncStorage.setItem(STORAGE_KEYS.SOCIETE_ID, sid);
         if (bid) await AsyncStorage.setItem(STORAGE_KEYS.BOUTIQUE_ID, bid);
 
-        onLoginSuccess({ 
-          ...data.user, 
-          token: data.token, 
+        onLoginSuccess({
+          ...data.user,
+          token: data.token,
           liens: data.liens || [],
           permissions: data.permissions || [],
         });
@@ -125,12 +128,7 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: '#fff' }]}>
           <View style={styles.modalHeader}>
@@ -165,10 +163,7 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
                     placeholder="Login ou Email ou Téléphone"
                     placeholderTextColor="#999"
                     value={login}
-                    onChangeText={(text) => {
-                      setLogin(text);
-                      setError('');
-                    }}
+                    onChangeText={(text) => { setLogin(text); setError(''); }}
                     autoCapitalize="none"
                     editable={!loading}
                   />
@@ -184,10 +179,7 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
                     placeholder="••••••••"
                     placeholderTextColor="#999"
                     value={mdp}
-                    onChangeText={(text) => {
-                      setMdp(text);
-                      setError('');
-                    }}
+                    onChangeText={(text) => { setMdp(text); setError(''); }}
                     secureTextEntry={!showPassword}
                     editable={!loading}
                     onSubmitEditing={handleLogin}
@@ -203,31 +195,22 @@ const LoginModal = ({ visible, onClose, onLoginSuccess, onRegisterPress, onForgo
                 onPress={handleLogin}
                 disabled={loading}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.loginBtnText}>Se connecter</Text>
-                )}
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginBtnText}>Se connecter</Text>}
               </TouchableOpacity>
 
               <View style={styles.linksContainer}>
                 <TouchableOpacity style={styles.forgotBtn} onPress={onForgotPress}>
-    <Text style={[styles.forgotBtnText, { color: '#075E54' }]}>Mot de passe oublié ?</Text>
-  </TouchableOpacity>
+                  <Text style={[styles.forgotBtnText, { color: '#075E54' }]}>Mot de passe oublié ?</Text>
+                </TouchableOpacity>
 
                 <Text style={styles.registerText}>
                   Pas encore de compte ?{' '}
-                  <Text 
-                    style={[styles.registerLink, { color: '#075E54' }]} 
-                    onPress={onRegisterPress}
-                  >
+                  <Text style={[styles.registerLink, { color: '#075E54' }]} onPress={onRegisterPress}>
                     Créer un compte
                   </Text>
                 </Text>
               </View>
             </View>
-
-            
           </ScrollView>
         </View>
       </View>
@@ -246,13 +229,11 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
     setError('');
     setSuccess(false);
 
-    // Validation
     if (!email.trim()) {
       setError('Veuillez saisir votre adresse email');
       return;
     }
 
-    // Validation simple du format email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       setError('Format d\'email invalide');
@@ -263,12 +244,8 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
     try {
       const response = await fetch('https://rouah.net/api/api-acces.php', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: email.trim()
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
       });
 
       const data = await response.json();
@@ -276,11 +253,9 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
       if (data.success) {
         setSuccess(true);
         setEmail('');
-        // Fermer automatiquement après 3 secondes
         setTimeout(() => {
           onClose();
           setSuccess(false);
-          // Optionnel : revenir à l'écran de connexion
           onLoginPress?.();
         }, 3000);
       } else {
@@ -294,12 +269,7 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContainer, { backgroundColor: '#fff' }]}>
           <View style={styles.modalHeader}>
@@ -314,9 +284,7 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
               <Ionicons name="mail-outline" size={50} color="#075E54" />
             </View>
 
-            <Text style={styles.forgotTitle}>
-              Récupération de vos accès
-            </Text>
+            <Text style={styles.forgotTitle}>Récupération de vos accès</Text>
             <Text style={styles.forgotSubtitle}>
               Saisissez l'adresse email associée à votre compte.
               Nous vous enverrons vos identifiants de connexion.
@@ -331,12 +299,8 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
             {success ? (
               <View style={styles.successBox}>
                 <Ionicons name="checkmark-circle" size={24} color="#16a34a" />
-                <Text style={styles.successText}>
-                  Un email contenant vos accès a été envoyé !
-                </Text>
-                <Text style={styles.successSubText}>
-                  Redirection vers la connexion...
-                </Text>
+                <Text style={styles.successText}>Un email contenant vos accès a été envoyé !</Text>
+                <Text style={styles.successSubText}>Redirection vers la connexion...</Text>
               </View>
             ) : (
               <>
@@ -349,10 +313,7 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
                       placeholder="exemple@email.com"
                       placeholderTextColor="#999"
                       value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        setError('');
-                      }}
+                      onChangeText={(text) => { setEmail(text); setError(''); }}
                       keyboardType="email-address"
                       autoCapitalize="none"
                       editable={!loading}
@@ -367,11 +328,7 @@ const ForgotPasswordModal = ({ visible, onClose, onLoginPress }) => {
                   onPress={handleSend}
                   disabled={loading}
                 >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.loginBtnText}>Envoyer</Text>
-                  )}
+                  {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginBtnText}>Envoyer</Text>}
                 </TouchableOpacity>
               </>
             )}
@@ -396,19 +353,13 @@ const OnboardingScreen = ({ onGetStarted, onRegister }) => {
   ];
 
   return (
-    <ScrollView 
-      style={styles.onboardingContainer}
-      contentContainerStyle={styles.onboardingContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <ScrollView style={styles.onboardingContainer} contentContainerStyle={styles.onboardingContent} showsVerticalScrollIndicator={false}>
       <View style={styles.onboardingHeader}>
         <View style={styles.onboardingLogo}>
           <Text style={styles.onboardingLogoText}>R</Text>
         </View>
         <Text style={styles.onboardingTitle}>Bienvenue sur Rouah</Text>
-        <Text style={styles.onboardingSubtitle}>
-          La solution complète de gestion commerciale
-        </Text>
+        <Text style={styles.onboardingSubtitle}>La solution complète de gestion commerciale</Text>
       </View>
 
       <View style={styles.featuresContainer}>
@@ -433,9 +384,7 @@ const OnboardingScreen = ({ onGetStarted, onRegister }) => {
       <View style={styles.onboardingFooter}>
         <Text style={styles.onboardingFooterText}>
           Déjà un compte ?{' '}
-          <Text style={styles.onboardingFooterLink} onPress={onGetStarted}>
-            Se connecter
-          </Text>
+          <Text style={styles.onboardingFooterLink} onPress={onGetStarted}>Se connecter</Text>
         </Text>
       </View>
     </ScrollView>
@@ -443,7 +392,6 @@ const OnboardingScreen = ({ onGetStarted, onRegister }) => {
 };
 
 // ============ APP PRINCIPAL ============
-
 export default function App() {
   const [selectedClient, setSelectedClient] = useState(null);
   const [selectedFournisseur, setSelectedFournisseur] = useState(null);
@@ -456,10 +404,17 @@ export default function App() {
   const [loadingBoutiques, setLoadingBoutiques] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [versionOk, setVersionOk] = useState(false);
-  const [forgotVisible, setForgotVisible] = useState(false); 
+  const [forgotVisible, setForgotVisible] = useState(false);
   const [permissions, setPermissions] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [notificationModalVisible, setNotificationModalVisible] = useState(false);
+  const [articlesTab, setArticlesTab] = useState('articles');
+  const [notifTargetId, setNotifTargetId] = useState(null);
+
+  // ⭐ WebView + Deep link
+  const [webview, setWebview] = useState(null);
+  const [deepLinkPaiement, setDeepLinkPaiement] = useState(null);
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
 
   const bottomTabs = [
     { key: 'accueil', label: 'Accueil', icon: 'home', iconActive: 'home', requiresAuth: false },
@@ -469,25 +424,251 @@ export default function App() {
     { key: 'parametres', label: 'Paramètres', icon: 'settings', iconActive: 'settings', requiresAuth: true },
   ];
 
+  // ============ HELPERS WEBVIEW ============
+  const openWebView = useCallback((url, title = '') => {
+    console.log('[WEBVIEW] Ouverture :', url);
+    setWebview({ url, title });
+  }, []);
+
+  const closeWebView = useCallback(() => {
+    setWebview(null);
+  }, []);
+
+  // ============ DEEP LINKS ============
+
+  /**
+   * Analyse une URL rouah:// et renvoie { route, action, operationId } ou null.
+   *
+   * Formats gérés :
+   *   rouah://paiement/succes/{operationId}
+   *   rouah://paiement/echec/{operationId}
+   *   rouah://licence/{id} / certificat / campagne / document / partenaire
+   */
+ const resolveDeepLink = (url) => {
+  if (!url) return null;
+
+  let normalized = url.trim();
+
+  // Normalisation scheme custom
+  if (normalized.startsWith('rouah:') && !normalized.startsWith('rouah://')) {
+    normalized = 'rouah://' + normalized.substring(6);
+  }
+
+  // On enlève query / hash
+  normalized = normalized.split('?')[0].split('#')[0];
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch (e) {
+    console.warn('[DEEPLINK] URL invalide :', url, e.message);
+    return null;
+  }
+
+  const protocol = parsed.protocol.replace(':', '').toLowerCase();
+  const host = (parsed.hostname || '').toLowerCase();
+  const segments = parsed.pathname.split('/').filter(Boolean);
+
+  // ── Cas 1 : scheme custom rouah://
+  if (protocol === 'rouah') {
+    // rouah://paiement/initial/xxx  → host = "paiement"
+    if (host === 'paiement') {
+      const [action, operationId] = segments;
+      if (!action || !operationId) return null;
+
+      const actionsAutorisees = ['initial', 'succes', 'echec'];
+      if (!actionsAutorisees.includes(action)) return null;
+
+      return { route: 'paiement', action, operationId };
+    }
+
+    // Autres modules
+    const moduleMap = {
+      licence: 'licence',
+      certificat: 'certificat',
+      campagne: 'campagne',
+      document: 'document',
+      partenaire: 'partenaire',
+    };
+    if (moduleMap[host]) {
+      const id = segments[0];
+      if (!id) return null;
+      return { route: moduleMap[host], id };
+    }
+
+    return null;
+  }
+
+  // ── Cas 2 : App Link HTTPS (https://rouah.net/...)
+  if (protocol === 'https' && host === 'rouah.net') {
+    // https://rouah.net/paiement/initial/xxx
+    if (segments[0] === 'paiement') {
+      const action = segments[1];
+      const operationId = segments[2];
+
+      if (!action || !operationId) return null;
+
+      const actionsAutorisees = ['initial', 'succes', 'echec'];
+      if (!actionsAutorisees.includes(action)) return null;
+
+      return { route: 'paiement', action, operationId };
+    }
+
+    // https://rouah.net/certificat/xxx  etc.
+    const moduleMap = {
+      licence: 'licence',
+      certificat: 'certificat',
+      campagne: 'campagne',
+      document: 'document',
+      partenaire: 'partenaire',
+    };
+    if (moduleMap[segments[0]]) {
+      const id = segments[1];
+      if (!id) return null;
+      return { route: moduleMap[segments[0]], id };
+    }
+  }
+
+  return null;
+};
+
+  /**
+   * Applique un deep link résolu :
+   *   - paiement/succes ou echec → ouvre WebViewModal sur la page PHP
+   *   - licence → tab Paramètres
+   *   - certificat / campagne / document / partenaire → WebView ou tab
+   */
+  const applyDeepLink = useCallback((link) => {
+    if (!link) return;
+
+    const { route, action, operationId, id } = link;
+
+    if (route === 'paiement') {
+  setDeepLinkPaiement({ action, operationId });
+
+  const routesPaiement = {
+    initial: 'initial',
+    succes: 'succes',
+    echec: 'echec',
+  };
+
+  const actionPaiement = routesPaiement[action];
+
+  if (!actionPaiement) {
+    console.warn('[DEEPLINK] Action de paiement non prise en charge :', action);
+    return;
+  }
+
+  const url =
+    `https://rouah.net/paiement/${actionPaiement}/` +
+    encodeURIComponent(operationId);
+
+  const titresPaiement = {
+    initial: 'Initialisation du paiement',
+    succes: 'Paiement réussi',
+    echec: 'Paiement échoué',
+  };
+
+  console.log('[DEEPLINK] Ouverture de la page de paiement :', url);
+
+  openWebView(url, titresPaiement[actionPaiement]);
+  return;
+}
+
+    if (route === 'licence') {
+      setActiveTab('parametres');
+      return;
+    }
+
+    if (route === 'certificat') {
+      setActiveTab('accueil');
+      openWebView(`https://rouah.net/certificat/${encodeURIComponent(id)}`, 'Mon certificat');
+      return;
+    }
+
+    if (route === 'campagne') {
+      setActiveTab('accueil');
+      openWebView(`https://rouah.net/campagne/${encodeURIComponent(id)}`, 'Campagne');
+      return;
+    }
+
+    if (route === 'document') {
+      setActiveTab('vente');
+      return;
+    }
+
+    if (route === 'partenaire') {
+      setActiveTab('parametres');
+      return;
+    }
+  }, [openWebView]);
+
+  /**
+   * Point d'entrée unique pour toutes les URLs rouah://
+   * (cold start, warm start, ou retour depuis WebView)
+   */
+  const traiterDeepLink = useCallback((url) => {
+    if (!url) return;
+    console.log('[DEEPLINK] URL reçue :', url);
+
+    const link = resolveDeepLink(url);
+    if (!link) {
+      console.warn('[DEEPLINK] Route non reconnue :', url);
+      return;
+    }
+    console.log('[DEEPLINK] Route résolue :', link);
+
+    // App pas encore prête → on met en attente
+    if (isLoading) {
+      console.log('[DEEPLINK] App non prête → mise en attente');
+      setPendingDeepLink(link);
+      return;
+    }
+
+    applyDeepLink(link);
+  }, [isLoading, applyDeepLink]);
+
+  // ── Écoute des deep links (cold start + warm start)
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      traiterDeepLink(url);
+    });
+
+    Linking.getInitialURL()
+      .then((url) => { if (url) traiterDeepLink(url); })
+      .catch((error) => {
+        console.error('[DEEPLINK] Erreur récupération URL initiale:', error);
+      });
+
+    return () => subscription.remove();
+  }, [traiterDeepLink]);
+
+  // ── Rejoue le deep link une fois l'app prête (session chargée)
+  useEffect(() => {
+    if (!isLoading && pendingDeepLink) {
+      console.log('[DEEPLINK] Rejeu différé :', pendingDeepLink);
+      applyDeepLink(pendingDeepLink);
+      setPendingDeepLink(null);
+    }
+  }, [isLoading, pendingDeepLink, applyDeepLink]);
+
   // ============ CHARGEMENT DE LA SESSION ============
   const loadSession = async () => {
     try {
-      // Récupérer les données stockées
       const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER);
       const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
       const sid = await AsyncStorage.getItem(STORAGE_KEYS.SOCIETE_ID);
       const bid = await AsyncStorage.getItem(STORAGE_KEYS.BOUTIQUE_ID);
 
       const perms = await AsyncStorage.getItem('@rouah_permissions');
-if (perms) setPermissions(JSON.parse(perms));
+      if (perms) setPermissions(JSON.parse(perms));
 
       if (userData && token) {
-        const user = JSON.parse(userData);
-        setUser(user);
+        const parsedUser = JSON.parse(userData);
+        setUser(parsedUser);
         if (sid) setSocieteId(sid);
         if (bid) setActiveBoutiqueId(bid);
-        
-        console.log('✅ Session chargée pour:', user.nom_prenom);
+        console.log('✅ Session chargée pour:', parsedUser.nom_prenom);
       }
     } catch (e) {
       console.warn('Erreur chargement session:', e.message);
@@ -504,10 +685,7 @@ if (perms) setPermissions(JSON.parse(perms));
       const res = await fetch(PARAM_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          societe_id: societeId,
-          action: 'list_boutiques',
-        }),
+        body: JSON.stringify({ societe_id: societeId, action: 'list_boutiques' }),
       });
       const json = await res.json();
       if (json.success && json.data && json.data.length > 0) {
@@ -534,7 +712,6 @@ if (perms) setPermissions(JSON.parse(perms));
     }
   };
 
-  // ============ CALLBACK POUR CHANGEMENT DE BOUTIQUE ============
   const handleBoutiqueChange = async (newBoutiqueId) => {
     console.log('🔄 Changement de boutique depuis Paramètres:', newBoutiqueId);
     setActiveBoutiqueId(newBoutiqueId);
@@ -542,77 +719,63 @@ if (perms) setPermissions(JSON.parse(perms));
   };
 
   // ============ CHARGEMENT INITIAL ============
-  useEffect(() => {
-    loadSession();
-  }, []);
+  useEffect(() => { loadSession(); }, []);
 
-  // Charger les boutiques quand societeId change
   useEffect(() => {
-    if (societeId) {
-      loadBoutiques();
-    }
+    if (societeId) loadBoutiques();
   }, [societeId]);
 
-  // ============================================================
-// 👈 NOUVEAU : Écoute des notifications push
-// ============================================================
-useEffect(() => {
-  const cleanup = setupNotificationListeners({
-    onNotificationReceived: (notif) => {
-      console.log('📱 Notification reçue:', notif.title);
-      setNotifications((prev) => [notif, ...prev].slice(0, 50));
+  // ⭐ Hook notifications push
+  useNotificationHandler({
+    onOpen: (notif) => {
+      console.log('🔔 Ouverture via push:', notif);
+      const targetId = notif.data?.notification_id ?? notif.data?.notificationId ?? null;
+      setNotifTargetId(targetId);
+      setNotificationModalVisible(true);
     },
-    onNotificationResponse: (notif) => {
-      console.log('👆 Notification tapée:', notif.title);
+    onReceive: (notif) => {
+      console.log('📩 Notification reçue (foreground):', notif);
       setNotifications((prev) => [notif, ...prev].slice(0, 50));
-      // Ouvrir le modal automatiquement
-      setTimeout(() => setNotificationModalVisible(true), 300);
     },
   });
 
-  return cleanup;
-}, []);
+  // ============ CONNEXION ============
+  const handleLoginSuccess = async (userData) => {
+    setUser(userData);
+    const lien = (userData.liens && userData.liens[0]) || null;
+    const sid = lien?.societe_id || userData.societe_id || null;
+    const bid = lien?.boutique_id || null;
 
-  // ============ GESTION DE LA CONNEXION ============
- const handleLoginSuccess = async (userData) => {
-  setUser(userData);
-  const lien = (userData.liens && userData.liens[0]) || null;
-  const sid = lien?.societe_id || userData.societe_id || null;
-  const bid = lien?.boutique_id || null;
-  
-  setSocieteId(sid);
-  setActiveBoutiqueId(bid);
-  setPermissions(userData.permissions || []);
-  await AsyncStorage.setItem('@rouah_permissions', JSON.stringify(userData.permissions || []));
-  
-  if (sid) await AsyncStorage.setItem(STORAGE_KEYS.SOCIETE_ID, sid);
-  if (bid) await AsyncStorage.setItem(STORAGE_KEYS.BOUTIQUE_ID, bid);
-  
-  if (!bid && sid) {
-    setTimeout(() => loadBoutiques(), 500);
-  }
-  // ============================================================
-  // 👈 NOUVEAU : Enregistrer le push token APRÈS la connexion
-  // ============================================================
-  if (userData.utilisateur_id) {
-    try {
-      console.log('🔔 Enregistrement du push token pour:', userData.utilisateur_id);
-      const token = await registerForPushNotifications(userData.utilisateur_id);
-      
-      if (token) {
-        console.log('✅ Push notifications activées');
-        await AsyncStorage.setItem('@rouah_push_token', token);
-      } else {
-        console.log('⚠️ Push notifications non activées');
-      }
-    } catch (e) {
-      console.warn('❌ Erreur enregistrement push:', e.message);
+    setSocieteId(sid);
+    setActiveBoutiqueId(bid);
+    setPermissions(userData.permissions || []);
+    await AsyncStorage.setItem('@rouah_permissions', JSON.stringify(userData.permissions || []));
+
+    if (sid) await AsyncStorage.setItem(STORAGE_KEYS.SOCIETE_ID, sid);
+    if (bid) await AsyncStorage.setItem(STORAGE_KEYS.BOUTIQUE_ID, bid);
+
+    if (!bid && sid) {
+      setTimeout(() => loadBoutiques(), 500);
     }
-  }
-};
 
- // ============ GESTION DE LA DÉCONNEXION ============
-const handleLogout = async () => {
+    if (userData.utilisateur_id) {
+      try {
+        console.log('🔔 Enregistrement du push token pour:', userData.utilisateur_id);
+        const token = await registerForPushNotifications(userData.utilisateur_id);
+        if (token) {
+          console.log('✅ Push notifications activées');
+          await AsyncStorage.setItem('@rouah_push_token', token);
+        } else {
+          console.log('⚠️ Push notifications non activées');
+        }
+      } catch (e) {
+        console.warn('❌ Erreur enregistrement push:', e.message);
+      }
+    }
+  };
+
+  // ============ DÉCONNEXION ============
+  const handleLogout = async () => {
     Alert.alert(
       'Déconnexion',
       'Voulez-vous vraiment vous déconnecter ?',
@@ -623,48 +786,29 @@ const handleLogout = async () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // ============================================================
-              // 1. RÉCUPÉRER LES IDENTIFIANTS DE SESSION
-              // ============================================================
               const sessionId = await AsyncStorage.getItem('@rouah_session_id');
               const sessionToken = await AsyncStorage.getItem('@rouah_session_token');
               const userId = user?.utilisateur_id || null;
 
-              // ============================================================
-              // 2. APPEL API DE DÉCONNEXION (libère la place côté serveur)
-              // ============================================================
               if (sessionId) {
                 try {
-                  const response = await fetch(
-                    'https://rouah.net/api/api-deconnexion.php',
-                    {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        session_id: sessionId,
-                        session_token: sessionToken,
-                        user_id: userId,
-                      }),
-                    }
-                  );
-
+                  const response = await fetch('https://rouah.net/api/api-deconnexion.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId, session_token: sessionToken, user_id: userId }),
+                  });
                   const data = await response.json();
-                   console.log(data);
-
+                  console.log(data);
                   if (data.success) {
                     console.log('✅ Déconnexion serveur réussie');
                   } else {
                     console.warn('⚠️ Déconnexion serveur:', data.message || data.error);
                   }
                 } catch (apiError) {
-                  // On ne bloque pas la déconnexion locale si l'API échoue
                   console.warn('⚠️ API déconnexion injoignable:', apiError.message);
                 }
               }
 
-              // ============================================================
-              // 3. NETTOYAGE DU STOCKAGE LOCAL (toujours exécuté)
-              // ============================================================
               await AsyncStorage.multiRemove([
                 STORAGE_KEYS.USER,
                 STORAGE_KEYS.TOKEN,
@@ -675,9 +819,6 @@ const handleLogout = async () => {
                 '@rouah_permissions',
               ]);
 
-              // ============================================================
-              // 4. RÉINITIALISATION DE L'ÉTAT REACT
-              // ============================================================
               setUser(null);
               setSocieteId(null);
               setActiveBoutiqueId(null);
@@ -685,10 +826,8 @@ const handleLogout = async () => {
               setSelectedFournisseur(null);
               setActiveTab('accueil');
               setPermissions([]);
-
             } catch (e) {
               console.error('❌ Erreur déconnexion:', e.message);
-              // En cas d'erreur critique, on force quand même le nettoyage local
               await AsyncStorage.clear();
               setUser(null);
               setSocieteId(null);
@@ -700,29 +839,25 @@ const handleLogout = async () => {
       ]
     );
   };
-  // ============ GESTION DES TABS ============
+
   const handleTabPress = (tab) => {
     if (tab.requiresAuth && !user) {
-      Alert.alert(
-        'Connexion requise',
-        'Veuillez vous connecter pour accéder à ce module.',
-        [
-          { text: 'Annuler', style: 'cancel' },
-          { text: 'Se connecter', onPress: () => setLoginVisible(true) }
-        ]
-      );
+      Alert.alert('Connexion requise', 'Veuillez vous connecter pour accéder à ce module.', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Se connecter', onPress: () => setLoginVisible(true) }
+      ]);
       return;
     }
     setActiveTab(tab.key);
   };
 
- const handleUserUpdated = useCallback((updated) => {
-  setUser(prev => {
-    const newUser = { ...prev, ...updated };
-    AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser)).catch(() => {});
-    return newUser;
-  });
-}, []);
+  const handleUserUpdated = useCallback((updated) => {
+    setUser(prev => {
+      const newUser = { ...prev, ...updated };
+      AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newUser)).catch(() => {});
+      return newUser;
+    });
+  }, []);
 
   // ============ AFFICHAGE DU CHARGEMENT ============
   if (isLoading) {
@@ -747,31 +882,31 @@ const handleLogout = async () => {
   const renderScreen = () => {
     if (!user && activeTab === 'accueil') {
       return (
-        <OnboardingScreen 
-          onGetStarted={() => setLoginVisible(true)} 
-          onRegister={() => setInscriptionVisible(true)} 
+        <OnboardingScreen
+          onGetStarted={() => setLoginVisible(true)}
+          onRegister={() => setInscriptionVisible(true)}
         />
       );
     }
 
-    switch(activeTab) {
+    switch (activeTab) {
       case 'accueil':
-        return <AccueilScreen 
-                   onSelectClient={setSelectedClient} 
-                   onSelectFournisseur={setSelectedFournisseur} 
-                   user={user} 
-                   societeId={societeId}
-                   boutiqueId={activeBoutiqueId}
-               />;
+        return <AccueilScreen
+          onSelectClient={setSelectedClient}
+          onSelectFournisseur={setSelectedFournisseur}
+          user={user}
+          societeId={societeId}
+          boutiqueId={activeBoutiqueId}
+        />;
       case 'articles':
         return user ? (
-          <ArticlesScreen 
-            user={user} 
-            societeId={societeId} 
-            boutiqueId={activeBoutiqueId} 
-            onChanged={() => {
-              loadBoutiques();
-            }}
+          <ArticlesScreen
+            user={user}
+            societeId={societeId}
+            boutiqueId={activeBoutiqueId}
+            activeTab={articlesTab}
+            onTabChange={setArticlesTab}
+            onChanged={() => { loadBoutiques(); }}
           />
         ) : (
           <View style={styles.placeholder}>
@@ -780,11 +915,7 @@ const handleLogout = async () => {
         );
       case 'vente':
         return user ? (
-          <VenteScreen 
-            user={user} 
-            societeId={societeId} 
-            boutiqueId={activeBoutiqueId} 
-          />
+          <VenteScreen user={user} societeId={societeId} boutiqueId={activeBoutiqueId} />
         ) : (
           <View style={styles.placeholder}>
             <Text style={styles.placeholderText}>Connectez-vous pour accéder à la vente</Text>
@@ -792,11 +923,7 @@ const handleLogout = async () => {
         );
       case 'caisses':
         return user ? (
-          <CaissesScreen 
-            user={user} 
-            societeId={societeId} 
-            boutiqueId={activeBoutiqueId} 
-          />
+          <CaissesScreen user={user} societeId={societeId} boutiqueId={activeBoutiqueId} />
         ) : (
           <View style={styles.placeholder}>
             <Text style={styles.placeholderText}>Connectez-vous pour accéder aux caisses</Text>
@@ -804,10 +931,10 @@ const handleLogout = async () => {
         );
       case 'parametres':
         return user ? (
-          <ParametresScreen 
-            user={user} 
-            onLogout={handleLogout} 
-            societeId={societeId} 
+          <ParametresScreen
+            user={user}
+            onLogout={handleLogout}
+            societeId={societeId}
             activeBoutiqueId={activeBoutiqueId}
             setActiveBoutiqueId={handleBoutiqueChange}
           />
@@ -824,127 +951,149 @@ const handleLogout = async () => {
   // ============ RENDU PRINCIPAL ============
   return (
     <SafeAreaProvider>
-    <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-      <StatusBar backgroundColor="#075E54" barStyle="light-content" />
-      <Header 
-        title="Rouah" 
-        user={user}
-        onLoginPress={() => setLoginVisible(true)}
-        onLogoutPress={handleLogout}
-        societeId={societeId}
-        boutiqueId={activeBoutiqueId}
-        onDashboardClose={() => {}}
-        onUserUpdated={handleUserUpdated} 
-      />
-      <View style={styles.content}>
-        {loadingBoutiques ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#075E54" />
-            <Text style={styles.loadingText}>Chargement des boutiques...</Text>
-          </View>
-        ) : (
-          renderScreen()
-        )}
-      </View>
-      <View style={styles.bottomTabBar}>
-        {bottomTabs.map((tab) => {
-  const isActive = activeTab === tab.key;
-  const isAuthDisabled = tab.requiresAuth && !user;
-  const isPermDenied = user && !isTabAllowed(tab.key, permissions);
-  const isDisabled = isAuthDisabled || isPermDenied;
+      <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+        <StatusBar backgroundColor="#075E54" barStyle="light-content" />
+        <Header
+          title="Rouah"
+          user={user}
+          onLoginPress={() => setLoginVisible(true)}
+          onLogoutPress={handleLogout}
+          societeId={societeId}
+          boutiqueId={activeBoutiqueId}
+          onDashboardClose={() => {}}
+          onUserUpdated={handleUserUpdated}
+        />
+        <View style={styles.content}>
+          {loadingBoutiques ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#075E54" />
+              <Text style={styles.loadingText}>Chargement des boutiques...</Text>
+            </View>
+          ) : (
+            renderScreen()
+          )}
+        </View>
+        <View style={styles.bottomTabBar}>
+          {bottomTabs.map((tab) => {
+            const isActive = activeTab === tab.key;
+            const isAuthDisabled = tab.requiresAuth && !user;
+            const isPermDenied = user && !isTabAllowed(tab.key, permissions);
+            const isDisabled = isAuthDisabled || isPermDenied;
 
-  return (
-    <TouchableOpacity
-      key={tab.key}
-      style={[styles.bottomTab, isActive && styles.bottomTabActive]}
-      onPress={() => {
-        if (isAuthDisabled) {
-          Alert.alert('Connexion requise', 'Veuillez vous connecter.', [
-            { text: 'Annuler', style: 'cancel' },
-            { text: 'Se connecter', onPress: () => setLoginVisible(true) },
-          ]);
-        } else if (isPermDenied) {
-          Alert.alert('Accès refusé', 'Vous n\'avez pas accès à ce module.');
-        } else {
-          setActiveTab(tab.key);
-        }
-      }}
-    >
-      <Ionicons
-        name={isActive ? tab.iconActive : tab.icon}
-        size={24}
-        color={isDisabled ? '#ccc' : (isActive ? '#075E54' : '#999')}
-      />
-      <Text style={[
-        styles.bottomTabText,
-        isActive && styles.bottomTabTextActive,
-        isDisabled && styles.bottomTabTextDisabled,
-      ]}>
-        {tab.label}
-      </Text>
-    </TouchableOpacity>
-  );
-})}
-      </View>
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                style={[styles.bottomTab, isActive && styles.bottomTabActive]}
+                onPress={() => {
+                  if (isAuthDisabled) {
+                    Alert.alert('Connexion requise', 'Veuillez vous connecter.', [
+                      { text: 'Annuler', style: 'cancel' },
+                      { text: 'Se connecter', onPress: () => setLoginVisible(true) },
+                    ]);
+                  } else if (isPermDenied) {
+                    Alert.alert('Accès refusé', 'Vous n\'avez pas accès à ce module.');
+                  } else {
+                    setActiveTab(tab.key);
+                  }
+                }}
+              >
+                <Ionicons
+                  name={isActive ? tab.iconActive : tab.icon}
+                  size={24}
+                  color={isDisabled ? '#ccc' : (isActive ? '#075E54' : '#999')}
+                />
+                <Text style={[
+                  styles.bottomTabText,
+                  isActive && styles.bottomTabTextActive,
+                  isDisabled && styles.bottomTabTextDisabled,
+                ]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-      <LoginModal
-        visible={loginVisible}
-        onClose={() => setLoginVisible(false)}
-        onLoginSuccess={handleLoginSuccess}
-        onRegisterPress={() => {
-          setLoginVisible(false);
-          setInscriptionVisible(true);
-        }}
-        onForgotPress={() => { // 👈 NOUVEAU
-          setLoginVisible(false);
-          setForgotVisible(true);
-        }}
-      />
+        <LoginModal
+          visible={loginVisible}
+          onClose={() => setLoginVisible(false)}
+          onLoginSuccess={handleLoginSuccess}
+          onRegisterPress={() => {
+            setLoginVisible(false);
+            setInscriptionVisible(true);
+          }}
+          onForgotPress={() => {
+            setLoginVisible(false);
+            setForgotVisible(true);
+          }}
+        />
 
-      <InscriptionModal
-        visible={inscriptionVisible}
-        onClose={() => setInscriptionVisible(false)}
-        onLoginPress={() => {
-          setInscriptionVisible(false);
-          setLoginVisible(true);
-        }}
-        onRegisterSuccess={() => {}}
-      />
+        <InscriptionModal
+          visible={inscriptionVisible}
+          onClose={() => setInscriptionVisible(false)}
+          onLoginPress={() => {
+            setInscriptionVisible(false);
+            setLoginVisible(true);
+          }}
+          onRegisterSuccess={() => {}}
+        />
 
-      {/* MOT DE PASSE OUBLIE */}
-      <ForgotPasswordModal
-        visible={forgotVisible}
-        onClose={() => setForgotVisible(false)}
-        onLoginPress={() => {
-          setForgotVisible(false);
-          setLoginVisible(true);
-        }}
-      />
+        <ForgotPasswordModal
+          visible={forgotVisible}
+          onClose={() => setForgotVisible(false)}
+          onLoginPress={() => {
+            setForgotVisible(false);
+            setLoginVisible(true);
+          }}
+        />
 
-       <VersionGate
-      onReady={() => setVersionOk(true)}
-      onBlocked={() => setVersionOk(false)}
-    />
+        <VersionGate
+          onReady={() => setVersionOk(true)}
+          onBlocked={() => setVersionOk(false)}
+        />
 
-    {/* 👈 NOUVEAU : Modal des notifications */}
-<NotificationModal
-  visible={notificationModalVisible}
-  onClose={() => setNotificationModalVisible(false)}
-  notifications={notifications}
-  onNotificationPress={(notif) => {
-    // Action au clic sur une notification
-    console.log('Notification cliquée:', notif);
-    
-    // Si la notification contient une action spécifique
-    if (notif.data?.action === 'open_dashboard') {
-      setNotificationModalVisible(false);
-      // Ouvrir le dashboard par exemple
-    }
-  }}
-  onClearAll={() => setNotifications([])}
-/>
+        <NotificationModal
+          visible={notificationModalVisible}
+          onClose={() => {
+            setNotificationModalVisible(false);
+            setNotifTargetId(null);
+          }}
+          societeId={societeId}
+          utilisateurId={user?.utilisateur_id ?? null}
+          targetNotifId={notifTargetId}
+          onNotificationPress={(notif) => {
+            console.log('Notification cliquée:', notif);
+            if (notif.lien?.startsWith('Campagnes')) {
+              setNotificationModalVisible(false);
+              setActiveTab('accueil');
+            } else if (notif.data?.action === 'open_dashboard') {
+              setNotificationModalVisible(false);
+            }
+          }}
+        />
 
-    </SafeAreaView>
+        <Modal
+          visible={!!webview}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={closeWebView}
+          statusBarTranslucent={false}
+        >
+          {webview && (
+            <WebViewModal
+              url={webview.url}
+              title={webview.title}
+              onClose={closeWebView}
+              onDeepLink={(url) => {
+                console.log('[APP] Deep link depuis WebView :', url);
+                closeWebView();
+                // Léger délai pour laisser le modal se fermer avant de réouvrir
+                setTimeout(() => traiterDeepLink(url), 250);
+              }}
+            />
+          )}
+        </Modal>
+      </SafeAreaView>
     </SafeAreaProvider>
   );
 }
@@ -964,7 +1113,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
   },
-  
+
   placeholder: {
     flex: 1,
     justifyContent: 'center',
@@ -1282,55 +1431,56 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
+
   // ===== FORGOT PASSWORD =====
-forgotIconContainer: {
-  alignItems: 'center',
-  marginBottom: 16,
-  marginTop: 8,
-},
-forgotTitle: {
-  fontSize: 20,
-  fontWeight: 'bold',
-  color: '#1a1a2e',
-  textAlign: 'center',
-  marginBottom: 8,
-},
-forgotSubtitle: {
-  fontSize: 14,
-  color: '#6b7280',
-  textAlign: 'center',
-  marginBottom: 20,
-  lineHeight: 20,
-},
-successBox: {
-  padding: 16,
-  borderRadius: 12,
-  backgroundColor: '#dcfce7',
-  borderWidth: 1,
-  borderColor: '#bbf7d0',
-  alignItems: 'center',
-  marginBottom: 16,
-},
-successText: {
-  fontSize: 15,
-  fontWeight: '600',
-  color: '#16a34a',
-  marginTop: 4,
-  textAlign: 'center',
-},
-successSubText: {
-  fontSize: 13,
-  color: '#16a34a',
-  marginTop: 4,
-},
-backToLoginBtn: {
-  marginTop: 16,
-  padding: 8,
-  alignItems: 'center',
-},
-backToLoginText: {
-  fontSize: 14,
-  color: '#075E54',
-  fontWeight: '500',
-},
+  forgotIconContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  forgotTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a1a2e',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  forgotSubtitle: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  successBox: {
+    padding: 16,
+    borderRadius: 12,
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  successText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#16a34a',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  successSubText: {
+    fontSize: 13,
+    color: '#16a34a',
+    marginTop: 4,
+  },
+  backToLoginBtn: {
+    marginTop: 16,
+    padding: 8,
+    alignItems: 'center',
+  },
+  backToLoginText: {
+    fontSize: 14,
+    color: '#075E54',
+    fontWeight: '500',
+  },
 });

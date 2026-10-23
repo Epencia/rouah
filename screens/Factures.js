@@ -5,13 +5,30 @@ import {
   ActivityIndicator, Alert, Modal, ScrollView, RefreshControl, Platform, Share,
   Linking,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import * as WebBrowser from 'expo-web-browser';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { offlineFetch } from '../services/offlineApi';
 
-const API_URL = 'https://rouah.net/api/api-facture.php';
+// ⭐ UN SEUL endpoint : api-accueil.php (couvre Vente + Achat + Facture)
+const API_URL = 'https://rouah.net/api/api-accueil.php';
 const IMPRESSION_API_URL = 'https://rouah.net/api/api-impression.php';
+
+// ============ HELPERS API ============
+// api-accueil.php utilise des noms d'action suffixés "_achat" pour la catégorie Achat
+function mapActionForCategory(action, categorie) {
+  const isAchat = (categorie || '').toLowerCase() === 'achat';
+  if (!isAchat) return action;
+  switch (action) {
+    case 'transformer':     return 'transformer_achat';
+    case 'update_status':   return 'update_status_achat';
+    case 'create_document': return 'create_document_achat';
+    case 'get_document':    return 'get_document_achat';
+    default:                return action;
+  }
+}
 
 // ============ TRANSITIONS ============
 const TRANSITIONS = {
@@ -42,7 +59,6 @@ const getBadgeLabel = (type) => {
   return 'DOCUMENT COMMERCIAL';
 };
 
-// Normalisation d'un item de liste (API peut renvoyer des champs variables)
 const normalizeListItem = (item) => {
   const id = item.document_id || item.id || item.raw?.document_id;
   const type = item.type || item.raw?.type || '';
@@ -87,7 +103,7 @@ const DOC_TYPES = [
 ];
 
 export default function FacturesScreen({
-  visible, // optionnel : si non fourni, l'écran s'affiche quand même
+  visible,
   onClose,
   colors = {},
   societeId,
@@ -114,29 +130,29 @@ export default function FacturesScreen({
   const [printing, setPrinting] = useState(false);
   const [transforming, setTransforming] = useState(false);
 
+  const [showPrintChoice, setShowPrintChoice] = useState(false);
+
   const primary = colors.primary || '#075E54';
   const surface = colors.surface || '#fff';
   const border = colors.border || '#e5e7eb';
   const text = colors.text || '#111';
   const muted = colors.muted || '#6b7280';
 
+  // ⭐ apiCall avec compat : url (objet) OU (url, body)
   const apiCall = async (url, body = {}) => {
-  // Compatibilité si un jour on appelle apiCall({ action: '...' }) sans url
-  if (typeof url === 'object' && url !== null) {
-    body = url;
-    url = API_URL;
-  }
-
-  const json = await offlineFetch(url, {
-    societe_id: societeId,
-    boutique_id: boutiqueId || undefined,
-    utilisateur_id: user?.utilisateur_id,
-    ...body,
-  });
-
-  if (!json.success) throw new Error(json.message || 'Erreur API');
-  return json;
-};
+    if (typeof url === 'object' && url !== null) {
+      body = url;
+      url = API_URL;
+    }
+    const json = await offlineFetch(url, {
+      societe_id: societeId,
+      boutique_id: boutiqueId || undefined,
+      utilisateur_id: user?.utilisateur_id,
+      ...body,
+    });
+    if (!json.success) throw new Error(json.message || 'Erreur API');
+    return json;
+  };
 
   const load = useCallback(async () => {
     if (!societeId) return;
@@ -150,7 +166,6 @@ export default function FacturesScreen({
         date_fin: formatDate(dateFin),
         limit: 80,
       });
-      // 🔑 Normalisation pour affichage correct
       const rows = (json.data || []).map(normalizeListItem);
       setList(rows);
     } catch (e) {
@@ -161,7 +176,6 @@ export default function FacturesScreen({
     }
   }, [societeId, boutiqueId, categorie, docType, search, dateDebut, dateFin]);
 
-  // Charge dès que societeId est dispo (visible optionnel)
   useEffect(() => {
     if (visible === false) return;
     if (!societeId) return;
@@ -197,7 +211,6 @@ export default function FacturesScreen({
     setFacture(null);
     try {
       const json = await apiCall({ action: 'get_facture', document_id: documentId });
-      // Normaliser un peu le détail pour les champs optionnels
       const data = json.data || {};
       setFacture({
         ...data,
@@ -226,12 +239,15 @@ export default function FacturesScreen({
     }
   };
 
+  // ⭐ TRANSFORMATION via api-accueil.php uniquement
+   // ⭐ TRANSFORMATION : 2 étapes (transformer + create_document)
   const handleTransform = async (newType) => {
     if (!facture) return;
 
     const labelMap = {
       'Bon de livraison': 'Bon de livraison',
       facture: 'Facture',
+      Facture: 'Facture',
       Devis: 'Devis',
       'Bon de commande': 'Bon de commande',
       Avoir: 'Avoir',
@@ -247,29 +263,70 @@ export default function FacturesScreen({
           onPress: async () => {
             setTransforming(true);
             try {
-              const apiUrl =
-                categorie === 'Vente'
-                  ? 'https://rouah.net/api/api-vente.php'
-                  : 'https://rouah.net/api/api-achat.php';
+              // -------------------------------------------------
+              // ÉTAPE 1 : préparation des données
+              // -------------------------------------------------
+              const prepAction = mapActionForCategory('transformer', categorie);
 
-              const res = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: 'transformer',
-                  societe_id: societeId,
-                  document_parent_id: facture.document_id,
-                  type: newType,
-                }),
+              const prep = await apiCall({
+                action: prepAction,
+                document_parent_id: facture.document_id,
+                type: newType,
               });
-              const json = await res.json();
-              if (json.success) {
-                Alert.alert('Succès', `${newType} créé à partir de ${facture.numero}`);
+
+              // ⚠️ On vérifie prep.data (pas seulement prep.success)
+              if (!prep.success || !prep.data) {
+                throw new Error(prep.message || 'Préparation de la transformation échouée');
+              }
+
+              const d = prep.data;
+
+              // -------------------------------------------------
+              // ÉTAPE 2 : création réelle du document
+              // -------------------------------------------------
+              const createAction = mapActionForCategory('create_document', categorie);
+
+              // api-accueil.php attend 'facture' (minuscule) dans l'enum
+              const createdType = String(d.type || newType).toLowerCase() === 'facture'
+                ? 'facture'
+                : d.type;
+
+              const createPayload = {
+                action: createAction,
+                type: createdType,
+                acteur_id: d.acteur_id,
+                document_parent_id: facture.document_id,
+                montant_horstaxe: d.montant_horstaxe,
+                taxe: d.taxe,
+                remise: d.remise,
+                montant_toutetaxe: d.montant_toutetaxe,
+                lignes: (d.lignes || []).map((l) => ({
+                  article_id: l.article_id,
+                  prix_achat: l.prix_achat,
+                  prix_vente: l.prix_vente,
+                  prix_unitaire: l.prix_unitaire,
+                  quantite: l.quantite,
+                  montant: l.montant,
+                  taxe_id: l.taxe_id,
+                  remise_ligne: l.remise_ligne,
+                  lot_id: l.lot_id,
+                })),
+                statut: 'valide',
+              };
+
+              const created = await apiCall(createPayload);
+
+              if (created.success) {
+                Alert.alert(
+                  'Succès',
+                  `${newType} ${created.numero || ''} créé à partir de ${facture.numero}`
+                );
                 setShowPrint(false);
                 load();
               } else {
-                Alert.alert('Erreur', json.message || 'Échec de la transformation');
+                Alert.alert('Erreur', created.message || 'Échec de la création');
               }
+
             } catch (e) {
               Alert.alert('Erreur', e.message);
             } finally {
@@ -281,19 +338,40 @@ export default function FacturesScreen({
     );
   };
 
-  const imprimerPDF = async () => {
+  // mode = 'facture' | 'recu'
+  const imprimerPDF = async (mode = 'facture') => {
     if (!facture) return;
     setPrinting(true);
+    setShowPrintChoice(false);
+
     try {
-      const url = `${IMPRESSION_API_URL}?action=generate_pdf&societe_id=${societeId}&document_id=${facture.document_id}`;
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
+      const action = mode === 'recu' ? 'generate_recu' : 'generate_pdf';
+      const url =
+        `${IMPRESSION_API_URL}?action=${action}` +
+        `&societe_id=${encodeURIComponent(societeId)}` +
+        `&document_id=${encodeURIComponent(facture.document_id)}`;
+
+      const safeNumero = String(facture.numero || 'document').replace(/[^A-Za-z0-9_-]/g, '_');
+      const suffix = mode === 'recu' ? '_Recu' : '';
+      const localUri = `${FileSystem.cacheDirectory}${safeNumero}${suffix}.pdf`;
+
+      const download = await FileSystem.downloadAsync(url, localUri);
+
+      if (download.status !== 200) {
+        throw new Error(`HTTP ${download.status}`);
+      }
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(download.uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `${mode === 'recu' ? 'Reçu' : facture.type || 'Document'} N° ${facture.numero}`,
+          UTI: 'com.adobe.pdf',
+        });
       } else {
-        Alert.alert('Erreur', "Impossible d'ouvrir le visualiseur de PDF sur cet appareil.");
+        Alert.alert('Succès', `Le PDF a été téléchargé :\n${download.uri}`);
       }
     } catch (e) {
-      Alert.alert('Erreur', "Erreur lors de l'ouverture du PDF: " + e.message);
+      Alert.alert('Erreur', "Impossible de télécharger le PDF : " + e.message);
     } finally {
       setPrinting(false);
     }
@@ -369,18 +447,17 @@ export default function FacturesScreen({
             {item.statut}
           </Text>
         </View>
-        {(item.type || '').toLowerCase() === 'Facture' && Number(item.reste) > 0 ? (
+        {(item.type || '').toLowerCase() === 'facture' && Number(item.reste) > 0 ? (
           <Text style={{ color: '#d97706', fontSize: 12, fontWeight: '600' }}>
             Reste {money(item.reste)} F
           </Text>
-        ) : (item.type || '').toLowerCase() === 'Facture' ? (
+        ) : (item.type || '').toLowerCase() === 'facture' ? (
           <Text style={{ color: '#16a34a', fontSize: 12, fontWeight: '600' }}>Soldée</Text>
         ) : null}
       </View>
     </TouchableOpacity>
   );
 
-  // Ne masquer que si visible est explicitement false (modal)
   if (visible === false) return null;
 
   return (
@@ -439,7 +516,7 @@ export default function FacturesScreen({
         ))}
       </View>
 
-      {/* Filtres Type de document */}
+      {/* Filtres Type */}
       <View
         style={[styles.docTypeFilters, { backgroundColor: surface, borderBottomColor: border }]}
       >
@@ -559,7 +636,7 @@ export default function FacturesScreen({
         />
       )}
 
-      {/* ========== APERÇU / IMPRESSION (design inchangé) ========== */}
+      {/* ========== APERÇU / IMPRESSION ========== */}
       <Modal
         visible={showPrint}
         animationType="slide"
@@ -585,10 +662,10 @@ export default function FacturesScreen({
             </Text>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity
-                onPress={imprimerPDF}
-                style={[styles.printBarBtn, { backgroundColor: '#7c3aed', borderRadius: 8 }]}
-                disabled={printing}
-              >
+  onPress={() => setShowPrintChoice(true)}
+  style={[styles.printBarBtn, { backgroundColor: '#7c3aed', borderRadius: 8 }]}
+  disabled={printing}
+>
                 {printing ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
@@ -751,7 +828,7 @@ export default function FacturesScreen({
                     <Text style={styles.totalValue}>{money(facture.totaux?.total_ttc)}</Text>
                   </View>
                   {(facture.type === 'Facture' ||
-                    (facture.type || '').toLowerCase() === 'Facture') && (
+                    (facture.type || '').toLowerCase() === 'facture') && (
                     <>
                       <View style={styles.totalRow}>
                         <Text style={styles.totalLabel}>Montant payé</Text>
@@ -788,7 +865,7 @@ export default function FacturesScreen({
                         <Text style={styles.taxTableCell}>
                           {money(facture.totaux?.total_ht)}
                         </Text>
-                        <Text style={styles.taxTableCell}>{facture.totaux?.tva}%</Text>
+                        <Text style={styles.taxTableCell}>{facture.totaux?.tva}</Text>
                         <Text style={styles.taxTableCell}>{money(facture.totaux?.tva)}</Text>
                       </View>
                     </View>
@@ -878,6 +955,66 @@ export default function FacturesScreen({
           )}
         </View>
       </Modal>
+
+            {/* ========== CHOIX FACTURE / RECU ========== */}
+      <Modal
+        visible={showPrintChoice}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPrintChoice(false)}
+      >
+        <View style={styles.choiceOverlay}>
+          <View style={styles.choiceContainer}>
+            <Text style={styles.choiceTitle}>Choisir le format</Text>
+            <Text style={styles.choiceSubtitle}>
+              {facture?.type || 'Document'} N° {facture?.numero || ''}
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.choiceBtn, { backgroundColor: '#7c3aed' }]}
+              onPress={() => imprimerPDF('facture')}
+              disabled={printing}
+            >
+              <Ionicons name="document-text" size={26} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.choiceBtnTitle}>Facture normalisée</Text>
+                <Text style={styles.choiceBtnSub}>Document officiel avec QR code FNE</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.choiceBtn, { backgroundColor: '#075E54' }]}
+              onPress={() => imprimerPDF('recu')}  // ⚠️ attention : appeler imprimerPDF('recu')
+              disabled={printing}
+            >
+              <Ionicons name="receipt" size={26} color="#fff" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.choiceBtnTitle}>Reçu</Text>
+                <Text style={styles.choiceBtnSub}>Ticket de caisse compact 80mm</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#fff" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.choiceCancel}
+              onPress={() => setShowPrintChoice(false)}
+            >
+              <Text style={styles.choiceCancelText}>Annuler</Text>
+            </TouchableOpacity>
+
+            {printing && (
+              <View style={{ marginTop: 12, alignItems: 'center' }}>
+                <ActivityIndicator color="#7c3aed" />
+                <Text style={{ marginTop: 6, color: '#6b7280', fontSize: 12 }}>
+                  Génération du PDF...
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -890,7 +1027,7 @@ const styles = StyleSheet.create({
   factureHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 46, paddingBottom: 12,
-    borderBottomWidth: 1, borderBottomColor: '#f0f0f0',backgroundColor:'#075E54'
+    borderBottomWidth: 1, borderBottomColor: '#f0f0f0', backgroundColor: '#075E54'
   },
   factureHeaderLeft: {
     flexDirection: 'row',
@@ -1250,5 +1387,61 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 12,
     marginBottom: 8,
+  },
+    choiceOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  choiceContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxWidth: 420,
+  },
+  choiceTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  choiceSubtitle: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
+    marginBottom: 18,
+  },
+  choiceBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    marginBottom: 10,
+    gap: 12,
+  },
+  choiceBtnTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  choiceBtnSub: {
+    color: 'rgba(255,255,255,0.85)',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  choiceCancel: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  choiceCancelText: {
+    color: '#6b7280',
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

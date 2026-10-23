@@ -12,7 +12,6 @@ import {
   Platform,
   StatusBar, Alert, Linking,TextInput
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system/legacy';

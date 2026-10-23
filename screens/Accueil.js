@@ -20,24 +20,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { Header } from './Header';
 import { offlineFetch } from '../services/offlineApi';
 
-// ============ CONSTANTES API ============
-const API_URL = 'https://rouah.net/api/api-acteur.php';
-const FACTURE_API_URL = 'https://rouah.net/api/api-facture.php';
-const VENTE_API_URL = 'https://rouah.net/api/api-vente.php';
-const ACHAT_API_URL = 'https://rouah.net/api/api-achat.php';
+// ============ CONSTANTE API UNIQUE ============
+const API_URL = 'https://rouah.net/api/api-accueil.php';
 
 // ============ MATRICE DE TRANSFORMATIONS POSSIBLES ============
-// Définit les transitions autorisées entre types de documents
 const TRANSFORMATIONS = {
-  // Documents de VENTE (client)
   vente: {
     'Devis': ['Bon de commande', 'Facture'],
     'Bon de commande': ['Bon de livraison', 'Facture'],
     'Bon de livraison': ['Facture'],
-    'Facture': [], // Une facture ne se transforme plus
-    'Avoir': [],   // Un avoir ne se transforme plus
+    'Facture': [],
+    'Avoir': [],
   },
-  // Documents d'ACHAT (fournisseur)
   achat: {
     'Devis': ['Bon de commande', 'Facture'],
     'Bon de commande': ['Bon de livraison', 'Facture'],
@@ -47,49 +41,34 @@ const TRANSFORMATIONS = {
   }
 };
 
-// Normalise le type pour comparaison (facture vs Facture)
 const normalizeType = (t) => {
   if (!t) return '';
   const s = String(t).trim();
-  if (s.toLowerCase() === 'Facture') return 'Facture';
+  if (s.toLowerCase() === 'facture') return 'Facture';
   return s;
 };
 
-// Retourne les transformations possibles pour un type donné
-// Accepte : 'Devis', 'devis', 'bon_de_commande', 'Bon de commande', 'facture', etc.
 const getPossibleTransformations = (currentType, isFournisseur) => {
   if (!currentType) return [];
-
   const key = isFournisseur ? 'achat' : 'vente';
   const map = TRANSFORMATIONS[key];
-
-  // 1. Normaliser : minuscules + remplacer _ et - par des espaces
   const normalized = String(currentType)
     .toLowerCase()
     .replace(/[_-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-
-  // 2. Table de correspondance → clé canonique de la matrice
   const canonicalMap = {
-    'devis':            'Devis',
-    'bon de commande':  'Bon de commande',
+    'devis': 'Devis',
+    'bon de commande': 'Bon de commande',
     'bon de livraison': 'Bon de livraison',
-    'facture':          'Facture',
-    'avoir':            'Avoir',
+    'facture': 'Facture',
+    'avoir': 'Avoir',
   };
-
   const canonicalType = canonicalMap[normalized];
-  if (!canonicalType) {
-    console.warn('⚠️ Type de document non reconnu:', currentType);
-    return [];
-  }
-
+  if (!canonicalType) return [];
   return map[canonicalType] || [];
 };
 
-// Détermine si un document peut être annulé
-// (tous sauf ceux déjà annulés)
 const canCancelDocument = (doc) => {
   const statut = (doc?.statut || '').toLowerCase();
   return statut !== 'annule' && statut !== 'annulé';
@@ -98,19 +77,11 @@ const canCancelDocument = (doc) => {
 // ============ COMPOSANT MODAL D'AJOUT D'ACTEUR ============
 const AddActeurModal = ({ visible, onClose, onSuccess, type, societeId, user }) => {
   const [form, setForm] = useState({
-    nom_prenom: '',
-    telephone: '',
-    email: '',
-    adresse: '',
-    categorie: 'physique',
-    registre_commerce: '',
-    compte_contribuable: '',
-    regime_imposition: '',
-    plafond_credit: '0',
-    statut: 'actif',
+    nom_prenom: '', telephone: '', email: '', adresse: '',
+    categorie: 'physique', registre_commerce: '', compte_contribuable: '',
+    regime_imposition: '', plafond_credit: '0', statut: 'actif',
   });
   const [loading, setLoading] = useState(false);
-
   const setF = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
   const handleSubmit = async () => {
@@ -134,26 +105,18 @@ const AddActeurModal = ({ visible, onClose, onSuccess, type, societeId, user }) 
         plafond_credit: parseFloat(form.plafond_credit) || 0,
         statut: form.statut,
       };
-      
-      const json = await offlineFetch(API_URL, {
+      // ⚠️ create_acteur reste géré par api-acteur.php (hors périmètre de la fusion)
+      const json = await offlineFetch('https://rouah.net/api/api-acteur.php', {
         societe_id: societeId,
         utilisateur_id: user?.utilisateur_id,
         ...payload,
       });
-      
       if (json.success) {
         Alert.alert('Succès', `${type === 'client' ? 'Client' : 'Fournisseur'} créé avec succès`);
         setForm({
-          nom_prenom: '',
-          telephone: '',
-          email: '',
-          adresse: '',
-          categorie: 'physique',
-          registre_commerce: '',
-          compte_contribuable: '',
-          regime_imposition: '',
-          plafond_credit: '0',
-          statut: 'actif',
+          nom_prenom: '', telephone: '', email: '', adresse: '',
+          categorie: 'physique', registre_commerce: '', compte_contribuable: '',
+          regime_imposition: '', plafond_credit: '0', statut: 'actif',
         });
         onSuccess();
         onClose();
@@ -365,24 +328,20 @@ const DocumentDetailModal = ({ visible, onClose, document }) => {
                 <Text style={styles.docDetailLabel}>Numéro</Text>
                 <Text style={styles.docDetailValue}>{document.numero || '—'}</Text>
               </View>
-
               <View style={styles.docDetailRow}>
                 <Text style={styles.docDetailLabel}>Type</Text>
                 <Text style={styles.docDetailValue}>{document.type || 'Document'}</Text>
               </View>
-
               <View style={styles.docDetailRow}>
                 <Text style={styles.docDetailLabel}>Date</Text>
                 <Text style={styles.docDetailValue}>{document.date || '—'}</Text>
               </View>
-
               <View style={styles.docDetailRow}>
                 <Text style={styles.docDetailLabel}>Montant TTC</Text>
                 <Text style={[styles.docDetailValue, styles.docDetailAmount]}>
                   {Number(montantTTC).toLocaleString('fr-FR')} F
                 </Text>
               </View>
-
               <View style={styles.docDetailRow}>
                 <Text style={styles.docDetailLabel}>Statut</Text>
                 <View
@@ -405,7 +364,6 @@ const DocumentDetailModal = ({ visible, onClose, document }) => {
                   </Text>
                 </View>
               </View>
-
               {(document.acteur_nom || document.client?.nom) && (
                 <View style={styles.docDetailRow}>
                   <Text style={styles.docDetailLabel}>Client / Fournisseur</Text>
@@ -414,29 +372,93 @@ const DocumentDetailModal = ({ visible, onClose, document }) => {
                   </Text>
                 </View>
               )}
-
               {lignes.length > 0 && (
-                <>
-                  <Text style={styles.docDetailSection}>Articles ({lignes.length})</Text>
-                  {lignes.slice(0, 8).map((ligne, idx) => (
-                    <View key={idx} style={styles.docLigneItem}>
-                      <Text style={styles.docLigneName} numberOfLines={1}>
-                        {ligne.designation || ligne.article_nom || ligne.nom || 'Article'}
-                      </Text>
-                      <Text style={styles.docLigneQty}>
-                        {ligne.quantite} ×{' '}
-                        {Number(ligne.pu_ht ?? ligne.prix_unitaire ?? 0).toLocaleString('fr-FR')} F
-                      </Text>
-                    </View>
-                  ))}
-                  {lignes.length > 8 && (
-                    <Text style={styles.docLigneMore}>
-                      ... et {lignes.length - 8} autres
-                    </Text>
-                  )}
-                </>
-              )}
+  <>
+    <Text style={styles.docDetailSection}>Articles ({lignes.length})</Text>
+    {lignes.slice(0, 8).map((ligne, idx) => {
+      // 🔑 Récupération des infos de taxe et remise
+      const pu_ht = Number(ligne.pu_ht ?? ligne.prix_unitaire ?? 0);
+      const qte = Number(ligne.quantite ?? 0);
+      const ht = qte * pu_ht;
+      const taxeTaux = Number(ligne.taux ?? ligne.taxe_taux ?? 0);
+      const taxeCategorie = ligne.taxe_categorie || null;
+      const remise = Number(ligne.remise ?? ligne.remise_ligne ?? 0);
 
+      // Calculs
+      const taxeMontant = (ht * taxeTaux) / 100;
+      const remiseMontant = (ht * (remise > 0 && remise <= 100 ? remise : 0)) / 100;
+      // Si remise est un montant absolu (> 100 ou pas de %), on l'utilise tel quel
+      const remiseFinale = remise > 0 && remise > 100 ? remise : remiseMontant;
+
+      const ligneTotal = ht + (taxeCategorie === 'plus' ? taxeMontant : 0) - remiseFinale;
+
+      return (
+        <View key={idx} style={styles.docLigneItemFull}>
+          {/* Ligne 1 : nom de l'article */}
+          <View style={styles.docLigneRow}>
+            <Text style={styles.docLigneName} numberOfLines={2}>
+              {ligne.designation || ligne.article_nom || ligne.nom || 'Article'}
+            </Text>
+          </View>
+
+          {/* Ligne 2 : quantité × prix unitaire = HT */}
+          <View style={styles.docLigneRow}>
+            <Text style={styles.docLigneCalcLabel}>Quantité × PU</Text>
+            <Text style={styles.docLigneCalcValue}>
+              {qte} × {Number(pu_ht).toLocaleString('fr-FR')} F ={' '}
+              {Number(ht).toLocaleString('fr-FR')} F
+            </Text>
+          </View>
+
+          {/* Ligne 3 : Taxe (si présente) */}
+          {taxeTaux > 0 && (
+            <View style={styles.docLigneRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="add-circle" size={12} color="#16a34a" />
+                <Text style={[styles.docLigneCalcLabel, { color: '#16a34a' }]}>
+                  {ligne.taxe_libelle || `Taxe ${taxeTaux}%`}
+                </Text>
+              </View>
+              <Text style={[styles.docLigneCalcValue, { color: '#16a34a' }]}>
+                +{Number(taxeMontant).toLocaleString('fr-FR')} F
+              </Text>
+            </View>
+          )}
+
+          {/* Ligne 4 : Remise (si présente) */}
+          {remiseFinale > 0 && (
+            <View style={styles.docLigneRow}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Ionicons name="remove-circle" size={12} color="#dc2626" />
+                <Text style={[styles.docLigneCalcLabel, { color: '#dc2626' }]}>
+                  {remise > 100
+                    ? 'Remise'
+                    : `Remise ${remise}%`}
+                </Text>
+              </View>
+              <Text style={[styles.docLigneCalcValue, { color: '#dc2626' }]}>
+                -{Number(remiseFinale).toLocaleString('fr-FR')} F
+              </Text>
+            </View>
+          )}
+
+          {/* Ligne 5 : Total de la ligne */}
+          <View style={[styles.docLigneRow, styles.docLigneRowTotal]}>
+            <Text style={styles.docLigneTotalLabel}>Total ligne</Text>
+            <Text style={styles.docLigneTotalValue}>
+              {Number(ligneTotal).toLocaleString('fr-FR')} F
+            </Text>
+          </View>
+        </View>
+      );
+    })}
+    {lignes.length > 8 && (
+      <Text style={styles.docLigneMore}>
+        ... et {lignes.length - 8} autres
+      </Text>
+    )}
+  </>
+)}
               {document.paiement && (
                 <>
                   <Text style={styles.docDetailSection}>Paiement</Text>
@@ -467,7 +489,6 @@ const DocumentDetailModal = ({ visible, onClose, document }) => {
 };
 
 // ============ COMPOSANT MODAL D'ACTIONS DOCUMENT ============
-// S'affiche quand on clique sur une bulle : permet de voir, transformer ou annuler
 const DocumentActionsModal = ({
   visible,
   onClose,
@@ -476,7 +497,7 @@ const DocumentActionsModal = ({
   onViewDetail,
   onTransform,
   onCancel,
-  onValidate, 
+  onValidate,
 }) => {
   if (!document) return null;
 
@@ -484,7 +505,6 @@ const DocumentActionsModal = ({
   const possibleTransforms = getPossibleTransformations(docType, isFournisseur);
   const cancellable = canCancelDocument(document);
   const isAlreadyCancelled = !cancellable;
-  // 🔑 Statut du document (pour conditionner l'affichage du bouton Valider)
   const statut = (document.statut || document.raw?.statut || '').toLowerCase();
   const isAlreadyValidated = statut === 'valide';
   const canValidate = !isAlreadyCancelled && !isAlreadyValidated;
@@ -501,7 +521,6 @@ const DocumentActionsModal = ({
           </View>
 
           <ScrollView contentContainerStyle={styles.modalBody}>
-            {/* Récap du document */}
             <View style={styles.actionDocHeader}>
               <View style={styles.actionDocIconWrapper}>
                 <Ionicons
@@ -523,7 +542,6 @@ const DocumentActionsModal = ({
               </View>
             </View>
 
-            {/* Bouton Voir détail */}
             <TouchableOpacity
               style={styles.actionBtn}
               onPress={() => {
@@ -535,23 +553,21 @@ const DocumentActionsModal = ({
               <Text style={styles.actionBtnText}>Voir le détail</Text>
             </TouchableOpacity>
 
-             {/* ✅ NOUVEAU : Bouton Valider (si applicable) */}
-        {canValidate && (
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: '#16A34A', backgroundColor: '#F0FDF4' }]}
-            onPress={() => {
-              onClose();
-              setTimeout(() => onValidate?.(document), 200);
-            }}
-          >
-            <Ionicons name="checkmark-circle-outline" size={20} color="#16A34A" />
-            <Text style={[styles.actionBtnText, { color: '#16A34A' }]}>
-              Valider le document
-            </Text>
-          </TouchableOpacity>
-        )}
+            {canValidate && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { borderColor: '#16A34A', backgroundColor: '#F0FDF4' }]}
+                onPress={() => {
+                  onClose();
+                  setTimeout(() => onValidate?.(document), 200);
+                }}
+              >
+                <Ionicons name="checkmark-circle-outline" size={20} color="#16A34A" />
+                <Text style={[styles.actionBtnText, { color: '#16A34A' }]}>
+                  Valider le document
+                </Text>
+              </TouchableOpacity>
+            )}
 
-            {/* Bouton Transformer */}
             {possibleTransforms.length > 0 && !isAlreadyCancelled && (
               <TouchableOpacity
                 style={[styles.actionBtn, { borderColor: '#8B5CF6' }]}
@@ -567,7 +583,6 @@ const DocumentActionsModal = ({
               </TouchableOpacity>
             )}
 
-            {/* Bouton Annuler */}
             {cancellable && (
               <TouchableOpacity
                 style={[styles.actionBtn, { borderColor: '#DC2626' }]}
@@ -625,10 +640,7 @@ const TransformDocumentModal = ({ visible, onClose, document, possibleTypes, onC
             {possibleTypes.map((t) => (
               <TouchableOpacity
                 key={t}
-                style={[
-                  styles.transformOption,
-                  saving && { opacity: 0.5 },
-                ]}
+                style={[styles.transformOption, saving && { opacity: 0.5 }]}
                 onPress={() => !saving && onConfirm(t)}
                 disabled={saving}
               >
@@ -657,7 +669,7 @@ const ClientItem = ({ client, onPress }) => (
   <TouchableOpacity style={styles.chatItem} onPress={onPress}>
     <View style={[styles.avatar, { backgroundColor: client.color || '#075E54' }]}>
       <Text style={styles.avatarText}>
-       {client.nom_prenom ? client.nom_prenom.charAt(0).toUpperCase() : '?'}
+        {client.nom_prenom ? client.nom_prenom.charAt(0).toUpperCase() : '?'}
       </Text>
     </View>
     <View style={styles.chatContent}>
@@ -756,47 +768,27 @@ const DocumentActionsBar = ({ onDocumentPress, isFournisseur = false }) => {
 const MessageBubble = ({ message, onPress }) => {
   const getIcon = () => {
     switch (normalizeType(message.type)) {
-      case 'Devis':
-      case 'devis':
-        return 'document-text-outline';
-      case 'Bon de commande':
-      case 'bon_commande':
-        return 'cart-outline';
-      case 'Bon de livraison':
-      case 'bon_livraison':
-        return 'car-outline';
-      case 'Facture':
-        return 'receipt-outline';
-      case 'Avoir':
-      case 'avoir':
-        return 'return-down-back-outline';
-      default:
-        return 'chatbubble-outline';
+      case 'Devis': return 'document-text-outline';
+      case 'Bon de commande': return 'cart-outline';
+      case 'Bon de livraison': return 'car-outline';
+      case 'Facture': return 'receipt-outline';
+      case 'Avoir': return 'return-down-back-outline';
+      default: return 'chatbubble-outline';
     }
   };
   const getColor = () => {
     switch (normalizeType(message.type)) {
-      case 'Devis':
-      case 'devis':
-        return '#075E54';
-      case 'Bon de commande':
-      case 'bon_commande':
-        return '#25D366';
-      case 'Bon de livraison':
-      case 'bon_livraison':
-        return '#34B7F1';
-      case 'facture':
-        return '#FF9500';
-      case 'Avoir':
-      case 'avoir':
-        return '#8B5CF6';
-      default:
-        return '#666';
+      case 'Devis': return '#075E54';
+      case 'Bon de commande': return '#25D366';
+      case 'Bon de livraison': return '#34B7F1';
+      case 'Facture': return '#FF9500';
+      case 'Avoir': return '#8B5CF6';
+      default: return '#666';
     }
   };
 
   const isCancelled = (message.statut || '').toLowerCase() === 'annule' ||
-                     (message.statut || '').toLowerCase() === 'annulé';
+                      (message.statut || '').toLowerCase() === 'annulé';
 
   return (
     <TouchableOpacity
@@ -838,11 +830,7 @@ const MessageBubble = ({ message, onPress }) => {
                     : '#d97706',
                 }}
               >
-                {isCancelled
-                  ? '✕ Annulé'
-                  : message.statut === 'valide'
-                  ? '✓ Validé'
-                  : 'En cours'}
+                {isCancelled ? '✕ Annulé' : message.statut === 'valide' ? '✓ Validé' : 'En cours'}
               </Text>
             </View>
           )}
@@ -870,19 +858,38 @@ const CreateDocumentForm = ({
   docType,
   isFournisseur = false,
 }) => {
-  const API = isFournisseur ? ACHAT_API_URL : VENTE_API_URL;
+  // 🔑 Action adaptée selon vente / achat
+  const ACTION_LIST_ARTICLES = 'list_articles';
+  const ACTION_CREATE_DOC = isFournisseur ? 'create_document_achat' : 'create_document';
 
   const [articles, setArticles] = useState([]);
   const [lignes, setLignes] = useState([]);
+  const [taxes, setTaxes] = useState([]);
   const [showArticleModal, setShowArticleModal] = useState(false);
+  const [showTaxeModal, setShowTaxeModal] = useState(false);
   const [modalArticleSearch, setModalArticleSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [createAsValide, setCreateAsValide] = useState(false);
+  const [selectedLigneIndex, setSelectedLigneIndex] = useState(null);
+
+  // 🔑 Charger les taxes (plus et moins) — via api-accueil.php
+  const loadTaxes = async () => {
+    try {
+      const json = await offlineFetch(API_URL, {
+        action: 'list_taxes',
+        societe_id: societeId,
+        utilisateur_id: user?.utilisateur_id,
+      });
+      if (json.success) setTaxes(json.data || []);
+    } catch (e) {
+      console.warn('loadTaxes error:', e.message);
+    }
+  };
 
   const loadArticles = async (search = '') => {
     try {
-      const json = await offlineFetch(API, {
-        action: 'list_articles',
+      const json = await offlineFetch(API_URL, {
+        action: ACTION_LIST_ARTICLES,
         societe_id: societeId,
         boutique_id: boutiqueId,
         utilisateur_id: user?.utilisateur_id,
@@ -900,11 +907,7 @@ const CreateDocumentForm = ({
       setLignes(
         lignes.map((l) =>
           l.article_id === article.article_id
-            ? {
-                ...l,
-                quantite: l.quantite + 1,
-                montant: (l.quantite + 1) * l.prix_unitaire,
-              }
+            ? { ...l, quantite: l.quantite + 1, montant: (l.quantite + 1) * l.prix_unitaire }
             : l
         )
       );
@@ -922,6 +925,13 @@ const CreateDocumentForm = ({
           prix_achat: Number(article.prix_achat || 0),
           quantite: 1,
           montant: prix,
+          taxe_id: null,
+          taxe_nom: null,
+          taxe_taux: 0,
+          taxe_categorie: null,
+          remise_ligne: 0,
+          remise_nom: null,
+          remise_taux: 0,
           stock_dispo: article.stock_dispo,
         },
       ]);
@@ -942,7 +952,68 @@ const CreateDocumentForm = ({
     );
   };
 
-  const totalTTC = lignes.reduce((sum, l) => sum + l.montant, 0);
+  const openTaxeModal = (index) => {
+    setSelectedLigneIndex(index);
+    loadTaxes();
+    setShowTaxeModal(true);
+  };
+
+  const applyTaxe = (taxe) => {
+    if (selectedLigneIndex === null) return;
+    setLignes(
+      lignes.map((l, i) => {
+        if (i !== selectedLigneIndex) return l;
+        if (taxe.categorie === 'plus') {
+          return {
+            ...l,
+            taxe_id: taxe.taxe_id,
+            taxe_nom: taxe.nom,
+            taxe_taux: Number(taxe.taux || 0),
+            taxe_categorie: 'plus',
+          };
+        } else {
+          return {
+            ...l,
+            remise_nom: taxe.nom,
+            remise_taux: Number(taxe.taux || 0),
+          };
+        }
+      })
+    );
+    setShowTaxeModal(false);
+    setSelectedLigneIndex(null);
+  };
+
+  const removeTaxe = (index, categorie) => {
+    setLignes(
+      lignes.map((l, i) => {
+        if (i !== index) return l;
+        if (categorie === 'plus') {
+          return { ...l, taxe_id: null, taxe_nom: null, taxe_taux: 0, taxe_categorie: null };
+        } else {
+          return { ...l, remise_nom: null, remise_taux: 0 };
+        }
+      })
+    );
+  };
+
+  // Calcul du total TTC avec taxes et remises
+  const totalTTC = lignes.reduce((sum, l) => {
+    const ht = l.quantite * l.prix_unitaire;
+    const taxe = (ht * (l.taxe_taux || 0)) / 100;
+    const remise = (ht * (l.remise_taux || 0)) / 100;
+    return sum + ht + taxe - remise;
+  }, 0);
+
+  const totalHT = lignes.reduce((sum, l) => sum + l.quantite * l.prix_unitaire, 0);
+  const totalTaxe = lignes.reduce((sum, l) => {
+    const ht = l.quantite * l.prix_unitaire;
+    return sum + (ht * (l.taxe_taux || 0)) / 100;
+  }, 0);
+  const totalRemise = lignes.reduce((sum, l) => {
+    const ht = l.quantite * l.prix_unitaire;
+    return sum + (ht * (l.remise_taux || 0)) / 100;
+  }, 0);
 
   const saveDocument = async () => {
     if (!acteur?.acteur_id) {
@@ -954,28 +1025,44 @@ const CreateDocumentForm = ({
       return;
     }
     if (!boutiqueId) {
-      Alert.alert(
-        'Boutique requise',
-        'Aucune boutique active sélectionnée. Veuillez patienter le chargement ou contacter l\'administrateur.',
-      );
+      Alert.alert('Boutique requise', 'Aucune boutique active sélectionnée.');
       return;
     }
     setSaving(true);
     try {
-      const json = await offlineFetch(API, {
-        action: 'create_document',
+      const lignesPayload = lignes.map((l) => {
+        const ht = l.quantite * l.prix_unitaire;
+        const remiseMontant = (ht * (l.remise_taux || 0)) / 100;
+        return {
+          article_id: l.article_id,
+          prix_unitaire: l.prix_unitaire,
+          prix_vente: l.prix_vente,
+          prix_achat: l.prix_achat,
+          quantite: l.quantite,
+          montant: ht,
+          taxe_id: l.taxe_id || null,
+          remise_ligne: remiseMontant,
+          taxe_taux: l.taxe_taux || 0,
+          remise_taux: l.remise_taux || 0,
+        };
+      });
+
+      const json = await offlineFetch(API_URL, {
+        action: ACTION_CREATE_DOC,
         societe_id: societeId,
         boutique_id: boutiqueId,
         utilisateur_id: user?.utilisateur_id,
         type: docType,
         acteur_id: acteur.acteur_id,
-        montant_horstaxe: totalTTC,
+        montant_horstaxe: totalHT,
+        taxe: totalTaxe,
+        remise: totalRemise,
         montant_toutetaxe: totalTTC,
         avance: 0,
         statut: createAsValide ? 'valide' : 'en attente',
-        lignes,
+        lignes: lignesPayload,
       });
-      
+
       if (json.success) {
         Alert.alert(
           'Succès',
@@ -1057,39 +1144,121 @@ const CreateDocumentForm = ({
           {lignes.length > 0 && (
             <>
               <Text style={[styles.formLabel, { marginTop: 16 }]}>Lignes du document</Text>
-              {lignes.map((l) => (
-                <View key={l.article_id} style={styles.panierItem}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: '600', color: '#333' }}>{l.nom}</Text>
-                    <Text style={{ color: '#666', fontSize: 12 }}>
-                      {Number(l.prix_unitaire).toLocaleString('fr-FR')} F × {l.quantite}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <TouchableOpacity onPress={() => changeQty(l.article_id, -1)}>
-                      <Text style={{ fontSize: 22, color: '#999', fontWeight: '600' }}>−</Text>
-                    </TouchableOpacity>
-                    <Text style={{ fontWeight: '700', minWidth: 20, textAlign: 'center' }}>
-                      {l.quantite}
-                    </Text>
-                    <TouchableOpacity onPress={() => changeQty(l.article_id, 1)}>
-                      <Text style={{ fontSize: 22, color: '#075E54', fontWeight: '600' }}>＋</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ))}
+              {lignes.map((l, index) => {
+                const ht = l.quantite * l.prix_unitaire;
+                const taxeMontant = (ht * (l.taxe_taux || 0)) / 100;
+                const remiseMontant = (ht * (l.remise_taux || 0)) / 100;
+                const ligneTotal = ht + taxeMontant - remiseMontant;
 
-              <View style={styles.totalBox}>
-                <Text style={{ fontSize: 16, fontWeight: '700' }}>Total TTC</Text>
-                <Text
-                  style={{
-                    fontSize: 20,
-                    fontWeight: '800',
-                    color: isFournisseur ? '#f59e0b' : '#16a34a',
-                  }}
-                >
-                  {totalTTC.toLocaleString('fr-FR')} F
-                </Text>
+                return (
+                  <View key={l.article_id} style={styles.panierItemFull}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '600', color: '#333', fontSize: 14 }}>
+                        {l.nom}
+                      </Text>
+                      <Text style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
+                        {Number(l.prix_unitaire).toLocaleString('fr-FR')} F × {l.quantite} ={' '}
+                        {Number(ht).toLocaleString('fr-FR')} F
+                      </Text>
+
+                      <View style={styles.taxesRow}>
+                        {l.taxe_nom ? (
+                          <TouchableOpacity
+                            style={styles.taxeChipPlus}
+                            onPress={() => removeTaxe(index, 'plus')}
+                          >
+                            <Ionicons name="add-circle" size={14} color="#16a34a" />
+                            <Text style={styles.taxeChipTextPlus}>
+                              {l.taxe_nom} {l.taxe_taux}%
+                            </Text>
+                            <Ionicons name="close" size={12} color="#16a34a" />
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={styles.addTaxeBtn}
+                            onPress={() => openTaxeModal(index)}
+                          >
+                            <Ionicons name="add" size={14} color="#16a34a" />
+                            <Text style={styles.addTaxeBtnText}>Taxe (+)</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {l.remise_nom ? (
+                          <TouchableOpacity
+                            style={styles.taxeChipMoins}
+                            onPress={() => removeTaxe(index, 'moins')}
+                          >
+                            <Ionicons name="remove-circle" size={14} color="#dc2626" />
+                            <Text style={styles.taxeChipTextMoins}>
+                              {l.remise_nom} {l.remise_taux}%
+                            </Text>
+                            <Ionicons name="close" size={12} color="#dc2626" />
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            style={[styles.addTaxeBtn, { borderColor: '#dc2626' }]}
+                            onPress={() => openTaxeModal(index)}
+                          >
+                            <Ionicons name="remove" size={14} color="#dc2626" />
+                            <Text style={[styles.addTaxeBtnText, { color: '#dc2626' }]}>
+                              Remise (-)
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+
+                      <Text style={styles.ligneTotal}>
+                        Total: {Number(ligneTotal).toLocaleString('fr-FR')} F
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TouchableOpacity onPress={() => changeQty(l.article_id, -1)}>
+                        <Text style={{ fontSize: 22, color: '#999', fontWeight: '600' }}>−</Text>
+                      </TouchableOpacity>
+                      <Text style={{ fontWeight: '700', minWidth: 20, textAlign: 'center' }}>
+                        {l.quantite}
+                      </Text>
+                      <TouchableOpacity onPress={() => changeQty(l.article_id, 1)}>
+                        <Text style={{ fontSize: 22, color: '#075E54', fontWeight: '600' }}>＋</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })}
+
+              <View style={styles.totalBoxFull}>
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>Total HT</Text>
+                  <Text style={styles.totalValue}>{Number(totalHT).toLocaleString('fr-FR')} F</Text>
+                </View>
+                {totalTaxe > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={[styles.totalLabel, { color: '#16a34a' }]}>Taxes (+)</Text>
+                    <Text style={[styles.totalValue, { color: '#16a34a' }]}>
+                      +{Number(totalTaxe).toLocaleString('fr-FR')} F
+                    </Text>
+                  </View>
+                )}
+                {totalRemise > 0 && (
+                  <View style={styles.totalRow}>
+                    <Text style={[styles.totalLabel, { color: '#dc2626' }]}>Remises (-)</Text>
+                    <Text style={[styles.totalValue, { color: '#dc2626' }]}>
+                      -{Number(totalRemise).toLocaleString('fr-FR')} F
+                    </Text>
+                  </View>
+                )}
+                <View style={[styles.totalRow, styles.totalRowFinal]}>
+                  <Text style={styles.totalLabelFinal}>Total TTC</Text>
+                  <Text
+                    style={[
+                      styles.totalValueFinal,
+                      { color: isFournisseur ? '#f59e0b' : '#16a34a' },
+                    ]}
+                  >
+                    {Number(totalTTC).toLocaleString('fr-FR')} F
+                  </Text>
+                </View>
               </View>
 
               <TouchableOpacity
@@ -1136,13 +1305,11 @@ const CreateDocumentForm = ({
         </ScrollView>
       </View>
 
+      {/* Modal sélection article */}
       <Modal visible={showArticleModal} animationType="slide" presentationStyle="pageSheet">
         <View style={{ flex: 1, backgroundColor: '#fff' }}>
           <View style={styles.formHeader}>
-            <TouchableOpacity
-              onPress={() => setShowArticleModal(false)}
-              style={{ padding: 8 }}
-            >
+            <TouchableOpacity onPress={() => setShowArticleModal(false)} style={{ padding: 8 }}>
               <Ionicons name="close" size={26} color="#333" />
             </TouchableOpacity>
             <Text style={styles.formTitle}>Ajouter un article</Text>
@@ -1164,10 +1331,7 @@ const CreateDocumentForm = ({
               data={articles}
               keyExtractor={(item) => String(item.article_id)}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.listItemModal}
-                  onPress={() => addLigne(item)}
-                >
+                <TouchableOpacity style={styles.listItemModal} onPress={() => addLigne(item)}>
                   <View style={{ flex: 1, paddingRight: 8 }}>
                     <Text style={{ fontWeight: '600', fontSize: 14 }} numberOfLines={1}>
                       {item.nom}
@@ -1183,10 +1347,7 @@ const CreateDocumentForm = ({
                       fontSize: 14,
                     }}
                   >
-                    {Number(isFournisseur ? item.prix_achat : item.prix_vente).toLocaleString(
-                      'fr-FR'
-                    )}{' '}
-                    F
+                    {Number(isFournisseur ? item.prix_achat : item.prix_vente).toLocaleString('fr-FR')} F
                   </Text>
                 </TouchableOpacity>
               )}
@@ -1197,6 +1358,64 @@ const CreateDocumentForm = ({
               }
             />
           </View>
+        </View>
+      </Modal>
+
+      {/* Modal sélection taxe */}
+      <Modal visible={showTaxeModal} animationType="slide" presentationStyle="pageSheet">
+        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={styles.formHeader}>
+            <TouchableOpacity onPress={() => setShowTaxeModal(false)} style={{ padding: 8 }}>
+              <Ionicons name="close" size={26} color="#333" />
+            </TouchableOpacity>
+            <Text style={styles.formTitle}>Choisir une taxe / remise</Text>
+            <View style={{ width: 40 }} />
+          </View>
+          <ScrollView style={{ flex: 1, padding: 16 }}>
+            {taxes.length === 0 ? (
+              <Text style={{ textAlign: 'center', color: '#999', marginTop: 40 }}>
+                Aucune taxe disponible
+              </Text>
+            ) : (
+              <>
+                <Text style={styles.taxeSectionTitle}>Taxes (augmentent le TTC)</Text>
+                {taxes
+                  .filter((t) => t.categorie === 'plus')
+                  .map((t) => (
+                    <TouchableOpacity
+                      key={t.taxe_id}
+                      style={styles.taxeItemPlus}
+                      onPress={() => applyTaxe(t)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.taxeItemName}>{t.nom}</Text>
+                        <Text style={styles.taxeItemType}>{t.type?.toUpperCase()}</Text>
+                      </View>
+                      <Text style={styles.taxeItemTauxPlus}>+{t.taux}%</Text>
+                    </TouchableOpacity>
+                  ))}
+
+                <Text style={[styles.taxeSectionTitle, { marginTop: 24 }]}>
+                  Remises (réduisent le TTC)
+                </Text>
+                {taxes
+                  .filter((t) => t.categorie === 'moins')
+                  .map((t) => (
+                    <TouchableOpacity
+                      key={t.taxe_id}
+                      style={styles.taxeItemMoins}
+                      onPress={() => applyTaxe(t)}
+                    >
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.taxeItemName}>{t.nom}</Text>
+                        <Text style={styles.taxeItemType}>{t.type?.toUpperCase()}</Text>
+                      </View>
+                      <Text style={styles.taxeItemTauxMoins}>-{t.taux}%</Text>
+                    </TouchableOpacity>
+                  ))}
+              </>
+            )}
+          </ScrollView>
         </View>
       </Modal>
     </Modal>
@@ -1214,21 +1433,23 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
   const [transformTypes, setTransformTypes] = useState([]);
   const [transforming, setTransforming] = useState(false);
 
-  // 🔑 API cible : api-vente.php pour client, api-achat.php pour fournisseur
-  const DOC_API_URL = isFournisseur ? ACHAT_API_URL : VENTE_API_URL;
+  // 🔑 Actions adaptées selon vente / achat
+  const ACTION_GET_DOC = isFournisseur ? 'get_facture' : 'get_facture';
+  const ACTION_TRANSFORM_PREP = isFournisseur ? 'transformer_achat' : 'transformer';
+  const ACTION_UPDATE_STATUS = isFournisseur ? 'update_status_achat' : 'update_status';
+  const ACTION_CREATE_DOC = isFournisseur ? 'create_document_achat' : 'create_document';
 
-  // Ouvre le modal d'actions quand on clique sur une bulle
   const handleDocumentClick = (message) => {
     setActionDocument(message);
     setShowActions(true);
   };
 
-  // Voir le détail complet
   const openDetail = async (message) => {
     const documentId = message.raw?.document_id || message.id;
     if (!documentId) return;
     try {
-      const json = await offlineFetch(FACTURE_API_URL, {
+      // 🔑 get_facture retourne le détail complet style FNE (vente et achat)
+      const json = await offlineFetch(API_URL, {
         action: 'get_facture',
         societe_id: societeId,
         utilisateur_id: user?.utilisateur_id,
@@ -1245,18 +1466,15 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
     }
   };
 
-  // Ouvre le modal de transformation
   const openTransform = (message, types) => {
     setTransformDocument(message);
     setTransformTypes(types);
     setShowTransform(true);
   };
 
-  // Effectue la transformation via api-vente/api-achat
   const confirmTransform = async (newType) => {
     const sourceDocument = transformDocument_;
     const documentId = sourceDocument?.raw?.document_id || sourceDocument?.id;
-    const sourceType = sourceDocument?.raw?.type || sourceDocument?.type;
 
     if (!documentId) {
       Alert.alert('Erreur', 'Document introuvable');
@@ -1269,9 +1487,9 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
 
     setTransforming(true);
     try {
-      // Étape 1 : demander à l'API les données du parent + nouvelles lignes
-      const prep = await offlineFetch(DOC_API_URL, {
-        action: 'transformer',
+      // Étape 1 : préparer les données du nouveau document
+      const prep = await offlineFetch(API_URL, {
+        action: ACTION_TRANSFORM_PREP,
         societe_id: societeId,
         utilisateur_id: user?.utilisateur_id,
         document_parent_id: documentId,
@@ -1284,9 +1502,9 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
         return;
       }
 
-      // Étape 2 : créer le nouveau document avec les données préparées
+      // Étape 2 : créer le nouveau document
       const payload = {
-        action: 'create_document',
+        action: ACTION_CREATE_DOC,
         societe_id: societeId,
         boutique_id: boutiqueId,
         utilisateur_id: user?.utilisateur_id,
@@ -1302,12 +1520,14 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
         lignes: prep.data.lignes,
       };
 
-      const created = await offlineFetch(DOC_API_URL, payload);
+      const created = await offlineFetch(API_URL, payload);
 
       if (created.success) {
         Alert.alert(
           'Succès',
-          `${newType} créé : ${created.numero || ''}${prep.data.parent_numero ? ` (depuis ${prep.data.parent_numero})` : ''}`
+          `${newType} créé : ${created.numero || ''}${
+            prep.data.parent_numero ? ` (depuis ${prep.data.parent_numero})` : ''
+          }`
         );
         setShowTransform(false);
         setTransformDocument(null);
@@ -1322,7 +1542,6 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
     }
   };
 
-  // Demande confirmation puis annule via api-vente/api-achat
   const confirmCancel = (message) => {
     const documentId = message.raw?.document_id || message.id;
     const docType = message.type || message.raw?.type;
@@ -1343,8 +1562,8 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
           style: 'destructive',
           onPress: async () => {
             try {
-              const json = await offlineFetch(DOC_API_URL, {
-                action: 'update_status',
+              const json = await offlineFetch(API_URL, {
+                action: ACTION_UPDATE_STATUS,
                 societe_id: societeId,
                 utilisateur_id: user?.utilisateur_id,
                 document_id: documentId,
@@ -1366,63 +1585,62 @@ const useDocumentActions = ({ societeId, user, isFournisseur, onRefresh, boutiqu
     );
   };
 
-  // Demande confirmation puis valide via api-vente/api-achat
-const confirmValidate = (message) => {
-  const documentId = message.raw?.document_id || message.id;
-  const docType = message.type || message.raw?.type;
-  const docNumero = message.raw?.numero || '';
-  const statut = (message.statut || message.raw?.statut || '').toLowerCase();
+  const confirmValidate = (message) => {
+    const documentId = message.raw?.document_id || message.id;
+    const docType = message.type || message.raw?.type;
+    const docNumero = message.raw?.numero || '';
+    const statut = (message.statut || message.raw?.statut || '').toLowerCase();
 
-  // Sécurité : ne pas valider un doc déjà validé ou annulé
-  if (statut === 'valide') {
-    Alert.alert('Information', 'Ce document est déjà validé.');
-    return;
-  }
-  if (statut === 'annule' || statut === 'annulé') {
-    Alert.alert('Erreur', 'Impossible de valider un document annulé.');
-    return;
-  }
+    if (statut === 'valide') {
+      Alert.alert('Information', 'Ce document est déjà validé.');
+      return;
+    }
+    if (statut === 'annule' || statut === 'annulé') {
+      Alert.alert('Erreur', 'Impossible de valider un document annulé.');
+      return;
+    }
 
-  const impactStock =
-    docType === 'Bon de livraison' ||
-    docType === 'Facture' ||
-    docType === 'Avoir';
+    const impactStock =
+      docType === 'Bon de livraison' || docType === 'Facture' || docType === 'Avoir';
 
-  Alert.alert(
-    'Valider le document',
-    `Voulez-vous vraiment valider ${docType} ${docNumero} ?\n\n` +
-      (impactStock
-        ? '⚠️ Cette validation va impacter le stock.'
-        : 'Cette action est irréversible.'),
-    [
-      { text: 'Non', style: 'cancel' },
-      {
-        text: 'Oui, valider',
-        style: 'default',
-        onPress: async () => {
-          try {
-            const json = await offlineFetch(DOC_API_URL, {
-              action: 'update_status',
-              societe_id: societeId,
-              utilisateur_id: user?.utilisateur_id,
-              document_id: documentId,
-              statut: 'valide',
-            });
+    Alert.alert(
+      'Valider le document',
+      `Voulez-vous vraiment valider ${docType} ${docNumero} ?\n\n` +
+        (impactStock
+          ? '⚠️ Cette validation va impacter le stock.'
+          : 'Cette action est irréversible.'),
+      [
+        { text: 'Non', style: 'cancel' },
+        {
+          text: 'Oui, valider',
+          style: 'default',
+          onPress: async () => {
+            try {
+              const json = await offlineFetch(API_URL, {
+                action: ACTION_UPDATE_STATUS,
+                societe_id: societeId,
+                utilisateur_id: user?.utilisateur_id,
+                document_id: documentId,
+                statut: 'valide',
+              });
 
-            if (json.success) {
-              Alert.alert('Succès', `Document validé${impactStock ? ' (stock mis à jour)' : ''}`);
-              onRefresh?.();
-            } else {
-              Alert.alert('Erreur', json.message || 'Validation impossible');
+              if (json.success) {
+                Alert.alert(
+                  'Succès',
+                  `Document validé${impactStock ? ' (stock mis à jour)' : ''}`
+                );
+                onRefresh?.();
+              } else {
+                Alert.alert('Erreur', json.message || 'Validation impossible');
+              }
+            } catch (e) {
+              Alert.alert('Erreur', e.message);
             }
-          } catch (e) {
-            Alert.alert('Erreur', e.message);
-          }
+          },
         },
-      },
-    ]
-  );
-};
+      ]
+    );
+  };
 
   return {
     showDocDetail,
@@ -1446,13 +1664,7 @@ const confirmValidate = (message) => {
 };
 
 // ============ COMPOSANT MODALS PARTAGÉS ============
-// Regroupe les modals de détail, actions, transformation pour éviter la duplication
-const DocumentModals = ({
-  isFournisseur,
-  docActions,
-  societeId,
-  user,
-}) => {
+const DocumentModals = ({ isFournisseur, docActions, societeId, user }) => {
   return (
     <>
       <DocumentDetailModal
@@ -1498,7 +1710,7 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
     if (!societeId || !client?.acteur_id) return;
     setLoading(true);
     try {
-      const json = await offlineFetch(FACTURE_API_URL, {
+      const json = await offlineFetch(API_URL, {
         action: 'list_by_acteur',
         societe_id: societeId,
         utilisateur_id: user?.utilisateur_id,
@@ -1506,7 +1718,7 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
         categorie: 'Vente',
         limit: 50,
       });
-      
+
       if (json.success) {
         const docs = (json.data || []).map((item) => ({
           id: item.id || item.raw?.document_id,
@@ -1531,30 +1743,25 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
     }
   }, [societeId, client, user]);
 
-  // 🔑 Hook des actions document
   const docActions = useDocumentActions({
     societeId,
     user,
     isFournisseur: false,
     onRefresh: loadHistorique,
-     boutiqueId,
+    boutiqueId,
   });
 
   useEffect(() => {
     loadHistorique();
   }, [loadHistorique]);
 
-  // 🔑 Écoute de la hauteur du clavier
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
     const onShow = (e) => setKeyboardHeight(e.endCoordinates.height);
     const onHide = () => setKeyboardHeight(0);
-
     const showSub = Keyboard.addListener(showEvent, onShow);
     const hideSub = Keyboard.addListener(hideEvent, onHide);
-
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -1566,11 +1773,10 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
     setShowCreateForm(true);
   };
 
-  // Appel, SMS et email
   const handleCall = (phoneNumber) => {
     if (phoneNumber) {
       Linking.openURL(`tel:${phoneNumber}`).catch(() => {
-        Alert.alert('Erreur', 'Impossible de passer l\'appel');
+        Alert.alert('Erreur', "Impossible de passer l'appel");
       });
     } else {
       Alert.alert('Information', 'Numéro de téléphone non disponible');
@@ -1580,7 +1786,7 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
   const handleSMS = (phoneNumber) => {
     if (phoneNumber) {
       Linking.openURL(`sms:${phoneNumber}`).catch(() => {
-        Alert.alert('Erreur', 'Impossible d\'envoyer le SMS');
+        Alert.alert('Erreur', "Impossible d'envoyer le SMS");
       });
     } else {
       Alert.alert('Information', 'Numéro de téléphone non disponible');
@@ -1590,7 +1796,7 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
   const handleEmail = (email) => {
     if (email) {
       Linking.openURL(`mailto:${email}`).catch(() => {
-        Alert.alert('Erreur', 'Impossible d\'envoyer l\'email');
+        Alert.alert('Erreur', "Impossible d'envoyer l'email");
       });
     } else {
       Alert.alert('Information', 'Adresse email non disponible');
@@ -1622,11 +1828,11 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
 
   return (
     <View style={styles.container}>
-      <Header 
-        title={client.nom_prenom ? truncateName(client.nom_prenom, 20) : 'Client'}  
-        onBack={onBack} 
+      <Header
+        title={client.nom_prenom ? truncateName(client.nom_prenom, 20) : 'Client'}
+        onBack={onBack}
         showLogo={false}
-        customRightIcons={customIcons} 
+        customRightIcons={customIcons}
       />
 
       <View style={styles.clientInfoCompact}>
@@ -1672,11 +1878,7 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
             <ActivityIndicator size="small" color="#075E54" style={{ marginTop: 24 }} />
           ) : filteredHistorique.length > 0 ? (
             filteredHistorique.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                onPress={docActions.handleDocumentClick}
-              />
+              <MessageBubble key={msg.id} message={msg} onPress={docActions.handleDocumentClick} />
             ))
           ) : (
             <Text style={styles.emptyText}>
@@ -1717,7 +1919,6 @@ export const ClientDetail = ({ client, onBack, societeId, boutiqueId, user }) =>
         </View>
       </View>
 
-      {/* Modals partagés (détail, actions, transformation) */}
       <DocumentModals
         isFournisseur={false}
         docActions={docActions}
@@ -1754,7 +1955,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
     if (!societeId || !fournisseur?.acteur_id) return;
     setLoading(true);
     try {
-      const json = await offlineFetch(FACTURE_API_URL, {
+      const json = await offlineFetch(API_URL, {
         action: 'list_by_acteur',
         societe_id: societeId,
         utilisateur_id: user?.utilisateur_id,
@@ -1762,7 +1963,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
         categorie: 'Achat',
         limit: 50,
       });
-      
+
       if (json.success) {
         const docs = (json.data || []).map((item) => ({
           id: item.id || item.raw?.document_id,
@@ -1792,7 +1993,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
     user,
     isFournisseur: true,
     onRefresh: loadHistorique,
-     boutiqueId,
+    boutiqueId,
   });
 
   useEffect(() => {
@@ -1802,13 +2003,10 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-
     const onShow = (e) => setKeyboardHeight(e.endCoordinates.height);
     const onHide = () => setKeyboardHeight(0);
-
     const showSub = Keyboard.addListener(showEvent, onShow);
     const hideSub = Keyboard.addListener(hideEvent, onHide);
-
     return () => {
       showSub.remove();
       hideSub.remove();
@@ -1823,7 +2021,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
   const handleCall = (phoneNumber) => {
     if (phoneNumber) {
       Linking.openURL(`tel:${phoneNumber}`).catch(() => {
-        Alert.alert('Erreur', 'Impossible de passer l\'appel');
+        Alert.alert('Erreur', "Impossible de passer l'appel");
       });
     } else {
       Alert.alert('Information', 'Numéro de téléphone non disponible');
@@ -1833,7 +2031,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
   const handleSMS = (phoneNumber) => {
     if (phoneNumber) {
       Linking.openURL(`sms:${phoneNumber}`).catch(() => {
-        Alert.alert('Erreur', 'Impossible d\'envoyer le SMS');
+        Alert.alert('Erreur', "Impossible d'envoyer le SMS");
       });
     } else {
       Alert.alert('Information', 'Numéro de téléphone non disponible');
@@ -1843,7 +2041,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
   const handleEmail = (email) => {
     if (email) {
       Linking.openURL(`mailto:${email}`).catch(() => {
-        Alert.alert('Erreur', 'Impossible d\'envoyer l\'email');
+        Alert.alert('Erreur', "Impossible d'envoyer l'email");
       });
     } else {
       Alert.alert('Information', 'Adresse email non disponible');
@@ -1927,11 +2125,7 @@ export const FournisseurDetail = ({ fournisseur, onBack, societeId, boutiqueId, 
             <ActivityIndicator size="small" color="#E74C3C" style={{ marginTop: 24 }} />
           ) : filteredHistorique.length > 0 ? (
             filteredHistorique.map((msg) => (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                onPress={docActions.handleDocumentClick}
-              />
+              <MessageBubble key={msg.id} message={msg} onPress={docActions.handleDocumentClick} />
             ))
           ) : (
             <Text style={styles.emptyText}>
@@ -2008,8 +2202,10 @@ export default function AccueilScreen({ onSelectClient, onSelectFournisseur, soc
     if (!societeId) return;
     setLoading(true);
     try {
+      // ⚠️ list_acteurs reste géré par api-acteur.php (hors périmètre de la fusion)
+      const ACTEUR_API_URL = 'https://rouah.net/api/api-acteur.php';
       const [clientsJson, fournisseursJson] = await Promise.all([
-        offlineFetch(API_URL, {
+        offlineFetch(ACTEUR_API_URL, {
           action: 'list_acteurs',
           societe_id: societeId,
           utilisateur_id: user?.utilisateur_id,
@@ -2017,7 +2213,7 @@ export default function AccueilScreen({ onSelectClient, onSelectFournisseur, soc
           search: searchText || undefined,
           limit: 100,
         }),
-        offlineFetch(API_URL, {
+        offlineFetch(ACTEUR_API_URL, {
           action: 'list_acteurs',
           societe_id: societeId,
           utilisateur_id: user?.utilisateur_id,
@@ -2026,7 +2222,7 @@ export default function AccueilScreen({ onSelectClient, onSelectFournisseur, soc
           limit: 100,
         }),
       ]);
-      
+
       if (clientsJson.success) setClients(clientsJson.data || []);
       if (fournisseursJson.success) setFournisseurs(fournisseursJson.data || []);
     } catch (e) {
@@ -2080,29 +2276,32 @@ export default function AccueilScreen({ onSelectClient, onSelectFournisseur, soc
       </View>
 
       <View style={styles.subTabBar}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.subTabScrollContent}
-        >
-          {['clients', 'fournisseurs'].map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.subTab, activeSubTab === tab && styles.subTabActive]}
-              onPress={() => setActiveSubTab(tab)}
-            >
-              <Ionicons
-                name={tab === 'clients' ? 'people' : 'business'}
-                size={20}
-                color={activeSubTab === tab ? '#075E54' : '#666'}
-              />
-              <Text style={[styles.subTabText, activeSubTab === tab && styles.subTabTextActive]}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+  <ScrollView
+    horizontal
+    showsHorizontalScrollIndicator={false}
+    contentContainerStyle={styles.subTabScrollContent}
+  >
+    {[
+      { key: 'clients', label: 'Clients', icon: 'people', count: clients.length },
+      { key: 'fournisseurs', label: 'Fournisseurs', icon: 'business', count: fournisseurs.length },
+    ].map((tab) => (
+      <TouchableOpacity
+        key={tab.key}
+        style={[styles.subTab, activeSubTab === tab.key && styles.subTabActive]}
+        onPress={() => setActiveSubTab(tab.key)}
+      >
+        <Ionicons
+          name={tab.icon}
+          size={20}
+          color={activeSubTab === tab.key ? '#075E54' : '#666'}
+        />
+        <Text style={[styles.subTabText, activeSubTab === tab.key && styles.subTabTextActive]}>
+          {tab.label} ({tab.count})
+        </Text>
+      </TouchableOpacity>
+    ))}
+  </ScrollView>
+</View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -2166,12 +2365,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 8,
-  },
+  searchInput: { flex: 1, fontSize: 16, color: '#333', marginLeft: 8 },
 
   subTabBar: {
     flexDirection: 'row',
@@ -2192,6 +2386,7 @@ const styles = StyleSheet.create({
   subTabActive: { backgroundColor: '#E8F5E9' },
   subTabText: { fontSize: 14, color: '#666', marginLeft: 6 },
   subTabTextActive: { color: '#075E54', fontWeight: '600' },
+  subTabScrollContent: { paddingHorizontal: 8 },
 
   chatItem: {
     flexDirection: 'row',
@@ -2225,10 +2420,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#EEE',
   },
-  clientInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  clientInfoRow: { flexDirection: 'row', alignItems: 'center' },
   avatarSmall: {
     width: 44,
     height: 44,
@@ -2237,61 +2429,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 12,
   },
-  avatarTextSmall: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  clientInfoText: {
-    flex: 1,
-  },
-  clientNameCompact: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#075E54',
-  },
-  clientSubCompact: {
-    fontSize: 11,
-    color: '#666',
-    marginTop: 1,
-  },
-  clientStatsCompact: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statItemCompact: {
-    alignItems: 'center',
-    paddingHorizontal: 8,
-  },
-  statValueCompact: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  statLabelCompact: {
-    fontSize: 8,
-    color: '#999',
-    marginTop: 1,
-  },
-  statDividerCompact: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#eee',
-  },
+  avatarTextSmall: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+  clientInfoText: { flex: 1 },
+  clientNameCompact: { fontSize: 15, fontWeight: '600', color: '#075E54' },
+  clientSubCompact: { fontSize: 11, color: '#666', marginTop: 1 },
+  clientStatsCompact: { flexDirection: 'row', alignItems: 'center' },
+  statItemCompact: { alignItems: 'center', paddingHorizontal: 8 },
+  statValueCompact: { fontSize: 14, fontWeight: 'bold', color: '#333' },
+  statLabelCompact: { fontSize: 8, color: '#999', marginTop: 1 },
+  statDividerCompact: { width: 1, height: 30, backgroundColor: '#eee' },
 
-  detailBody: {
-    flex: 1,
-    position: 'relative',
-  },
-  messagesArea: {
-    flex: 1,
-    backgroundColor: '#ECE5DD',
-  },
-  messagesContent: {
-    padding: 12,
-    paddingRight: 78,
-    paddingBottom: 20,
-  },
+  detailBody: { flex: 1, position: 'relative' },
+  messagesArea: { flex: 1, backgroundColor: '#ECE5DD' },
+  messagesContent: { padding: 12, paddingRight: 78, paddingBottom: 20 },
 
   floatingActionsContainer: {
     position: 'absolute',
@@ -2504,8 +2654,45 @@ const styles = StyleSheet.create({
   docLigneName: { fontSize: 13, color: '#333', flex: 1 },
   docLigneQty: { fontSize: 13, color: '#666', fontWeight: '500' },
   docLigneMore: { fontSize: 12, color: '#999', fontStyle: 'italic', marginTop: 4 },
+  // Styles pour les lignes détaillées
+docLigneItemFull: {
+  paddingVertical: 8,
+  borderBottomWidth: 1,
+  borderBottomColor: '#f0f0f0',
+},
+docLigneRow: {
+  flexDirection: 'row',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  paddingVertical: 3,
+},
+docLigneCalcLabel: {
+  fontSize: 11,
+  color: '#666',
+  fontWeight: '500',
+},
+docLigneCalcValue: {
+  fontSize: 12,
+  color: '#333',
+  fontWeight: '600',
+},
+docLigneRowTotal: {
+  borderTopWidth: 1,
+  borderTopColor: '#e5e7eb',
+  marginTop: 4,
+  paddingTop: 6,
+},
+docLigneTotalLabel: {
+  fontSize: 12,
+  fontWeight: '700',
+  color: '#075E54',
+},
+docLigneTotalValue: {
+  fontSize: 13,
+  fontWeight: '800',
+  color: '#075E54',
+},
 
-  // ===== ACTIONS MODAL =====
   actionDocHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2523,16 +2710,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionDocTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  actionDocSubtitle: {
-    fontSize: 12,
-    color: '#64748b',
-    marginTop: 2,
-  },
+  actionDocTitle: { fontSize: 15, fontWeight: '700', color: '#1e293b' },
+  actionDocSubtitle: { fontSize: 12, color: '#64748b', marginTop: 2 },
   actionDocCancelledBadge: {
     marginTop: 4,
     fontSize: 10,
@@ -2556,11 +2735,7 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#fff',
   },
-  actionBtnText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#075E54',
-  },
+  actionBtnText: { fontSize: 15, fontWeight: '600', color: '#075E54' },
   actionInfoBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2570,20 +2745,9 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 4,
   },
-  actionInfoText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#475569',
-    lineHeight: 18,
-  },
+  actionInfoText: { flex: 1, fontSize: 13, color: '#475569', lineHeight: 18 },
 
-  // ===== TRANSFORM MODAL =====
-  transformHint: {
-    fontSize: 14,
-    color: '#475569',
-    marginBottom: 16,
-    lineHeight: 20,
-  },
+  transformHint: { fontSize: 14, color: '#475569', marginBottom: 16, lineHeight: 20 },
   transformOption: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2596,12 +2760,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     gap: 12,
   },
-  transformOptionText: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6d28d9',
-  },
+  transformOptionText: { flex: 1, fontSize: 15, fontWeight: '600', color: '#6d28d9' },
 
   formHeader: {
     flexDirection: 'row',
@@ -2635,16 +2794,99 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderColor: '#d1d5db',
   },
-  panierItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  panierItemFull: {
     borderRadius: 10,
     borderWidth: 1,
     borderColor: '#e5e7eb',
     padding: 12,
     marginBottom: 8,
     backgroundColor: '#fafafa',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
+  taxesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 6,
+  },
+  addTaxeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#16a34a',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 2,
+  },
+  addTaxeBtnText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#16a34a',
+  },
+  taxeChipPlus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#16a34a',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 3,
+  },
+  taxeChipTextPlus: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#16a34a',
+  },
+  taxeChipMoins: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#dc2626',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    gap: 3,
+  },
+  taxeChipTextMoins: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#dc2626',
+  },
+  ligneTotal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#075E54',
+    marginTop: 6,
+  },
+  totalBoxFull: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 16,
+    marginTop: 12,
+    backgroundColor: '#f9fafb',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  totalRowFinal: {
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+    marginTop: 8,
+    paddingTop: 10,
+  },
+  totalLabel: { fontSize: 14, color: '#666' },
+  totalValue: { fontSize: 14, fontWeight: '600', color: '#333' },
+  totalLabelFinal: { fontSize: 16, fontWeight: '700', color: '#111' },
+  totalValueFinal: { fontSize: 20, fontWeight: '800' },
   totalBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -2690,7 +2932,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  subTabScrollContent: {
-    paddingHorizontal: 8,
+  taxeSectionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 10,
   },
+  taxeItemPlus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    backgroundColor: '#f0fdf4',
+    marginBottom: 8,
+  },
+  taxeItemMoins: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    marginBottom: 8,
+  },
+  taxeItemName: { fontSize: 14, fontWeight: '600', color: '#333' },
+  taxeItemType: { fontSize: 11, color: '#999', marginTop: 2 },
+  taxeItemTauxPlus: { fontSize: 16, fontWeight: '700', color: '#16a34a' },
+  taxeItemTauxMoins: { fontSize: 16, fontWeight: '700', color: '#dc2626' },
 });

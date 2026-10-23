@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   StyleSheet,
   View,
@@ -60,9 +60,24 @@ const STATUT_OPTIONS = [
   { value: 'inactif', label: 'Inactif', color: '#999' },
 ];
 
-export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged }) {
+export default function ArticlesScreen({ 
+  societeId, 
+  boutiqueId, 
+  user, 
+  onChanged,
+  activeTab: externalActiveTab,
+  onTabChange,
+}) {
   // ==================== ÉTATS ====================
-  const [activeTab, setActiveTab] = useState('articles');
+  const [internalActiveTab, setInternalActiveTab] = useState('articles');
+  const activeTab = externalActiveTab !== undefined ? externalActiveTab : internalActiveTab;
+  const setActiveTab = (tab) => {
+    setInternalActiveTab(tab);
+    onTabChange?.(tab);
+  };
+  const activeTabRef = useRef(activeTab);
+  const stockTabRef = useRef('stock');
+
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -108,7 +123,7 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
 
   // Modal sélection article (partagé entre mouvement et lot)
   const [showArticleModal, setShowArticleModal] = useState(false);
-  const [articleModalTarget, setArticleModalTarget] = useState('mouvement'); // 'mouvement' | 'lot'
+  const [articleModalTarget, setArticleModalTarget] = useState('mouvement');
   const [articleSearch, setArticleSearch] = useState('');
   const [filteredArticles, setFilteredArticles] = useState([]);
 
@@ -146,6 +161,15 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
   const [lotDatePickerTarget, setLotDatePickerTarget] = useState('fabrication');
   const [lotBoutiques, setLotBoutiques] = useState([]);
   const [lotSaving, setLotSaving] = useState(false);
+
+  // ==================== PERSISTANCE ONGLETS ====================
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    stockTabRef.current = stockTab;
+  }, [stockTab]);
 
   // ==================== APPELS API ====================
   const apiCall = async (url, body = {}) => {
@@ -294,6 +318,9 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
         loadInventaires(),
         loadLots(),
       ]);
+      // Restaurer les onglets actifs après rechargement
+      if (activeTabRef.current) setActiveTab(activeTabRef.current);
+      if (stockTabRef.current) setStockTab(stockTabRef.current);
     } catch (e) {
       Alert.alert('Erreur', e.message);
     } finally {
@@ -1580,9 +1607,9 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
           ListEmptyComponent={<Text style={styles.emptyText}>Aucun inventaire</Text>}
         />
 
-        {/* Modal détail inventaire */}
+        {/* Modal détail inventaire - CORRIGÉ */}
         <Modal visible={showInventaireDetail} animationType="slide" statusBarTranslucent={true}
-  navigationBarTranslucent={true}>
+          navigationBarTranslucent={true}>
           <View style={styles.modalWrapper}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Inventaire {currentInventaire?.date_inventaire || currentInventaire?.date}</Text>
@@ -1590,7 +1617,8 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
             </View>
-            <View style={styles.modalBody}>
+
+            <View style={{ flex: 1, paddingHorizontal: 14, paddingTop: 14 }}>
               <View style={styles.inventaireInfoBar}>
                 <Text style={styles.inventaireInfoText}>{currentInventaire?.boutique_nom}</Text>
                 <Text style={styles.inventaireInfoText}>
@@ -1626,8 +1654,10 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
                   }
                   return true;
                 })}
-                keyExtractor={(item) => item.ligne_inventaire_id}
-                contentContainerStyle={styles.listContent}
+                keyExtractor={(item) => String(item.ligne_inventaire_id)}
+                style={{ flex: 1 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
+                keyboardShouldPersistTaps="handled"
                 renderItem={({ item }) => {
                   const theo = item.quantite_theorique || 0;
                   const comp = parseFloat(item.quantite_comptee || 0);
@@ -1658,21 +1688,27 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
                     </View>
                   );
                 }}
+                ListEmptyComponent={
+                  <View style={{ padding: 40, alignItems: 'center' }}>
+                    <Text style={{ color: '#999' }}>Aucun article</Text>
+                  </View>
+                }
               />
-              {currentInventaire?.statut === 'en_cours' && (
-                <View style={styles.inventaireFooter}>
-                  <TouchableOpacity style={[styles.inventaireBtn, styles.inventaireBtnCancel]} onPress={() => annulerInventaire(currentInventaire)}>
-                    <Text style={styles.inventaireBtnText}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.inventaireBtn, styles.inventaireBtnSave]} onPress={saveInventaireLignes} disabled={saving}>
-                    {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.inventaireBtnText}>Enregistrer</Text>}
-                  </TouchableOpacity>
-                  <TouchableOpacity style={[styles.inventaireBtn, styles.inventaireBtnValidate]} onPress={validerInventaire} disabled={saving}>
-                    <Text style={styles.inventaireBtnText}>Valider</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
+
+            {currentInventaire?.statut === 'en_cours' && (
+              <View style={[styles.inventaireFooter, { paddingBottom: Platform.OS === 'ios' ? 54 : 54 }]}>
+                <TouchableOpacity style={[styles.inventaireBtn, styles.inventaireBtnCancel]} onPress={() => annulerInventaire(currentInventaire)}>
+                  <Text style={styles.inventaireBtnText}>Annuler</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.inventaireBtn, styles.inventaireBtnSave]} onPress={saveInventaireLignes} disabled={saving}>
+                  {saving ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.inventaireBtnText}>Enregistrer</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.inventaireBtn, styles.inventaireBtnValidate]} onPress={validerInventaire} disabled={saving}>
+                  <Text style={styles.inventaireBtnText}>Valider</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </Modal>
       </View>
@@ -1938,7 +1974,7 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
                   </View>
                 </View>
 
-                                {/* Restriction prix */}
+                {/* Restriction prix */}
                 <Text style={styles.modalLabel}>Restriction de prix</Text>
                 <View style={styles.modalRowChips}>
                   {RESTRICTION_OPTIONS.map((opt) => (
@@ -2037,7 +2073,6 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
                   placeholderTextColor="#999"
                 />
 
-
                 {/* Description */}
                 <Text style={styles.modalLabel}>Description</Text>
                 <TextInput
@@ -2117,14 +2152,12 @@ export default function ArticlesScreen({ societeId, boutiqueId, user, onChanged 
               </>
             )}
 
-            {/* Espace avant le bouton */}
             <View style={{ height: 20 }} />
 
             <TouchableOpacity style={[styles.modalSaveBtn, saving && styles.modalSaveBtnDisabled]} onPress={saveForm} disabled={saving}>
               {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalSaveBtnText}>{formMode === 'create' ? 'Créer' : 'Enregistrer'}</Text>}
             </TouchableOpacity>
 
-            {/* Espace final pour scroller au-delà du bouton */}
             <View style={{ height: 80 }} />
           </ScrollView>
         </KeyboardAvoidingView>
@@ -2882,14 +2915,15 @@ const styles = StyleSheet.create({
     color: '#DC3545',
   },
 
-  // Inventaire footer
+  // Inventaire footer - CORRIGÉ avec backgroundColor et paddingBottom
   inventaireFooter: {
     flexDirection: 'row',
     gap: 6,
     paddingVertical: 10,
+    paddingHorizontal: 14,
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
-    marginTop: 6,
+    backgroundColor: '#fff',
   },
   inventaireBtn: {
     flex: 1,

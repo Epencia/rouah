@@ -17,6 +17,7 @@ import {
   Dimensions,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -384,7 +385,7 @@ export default function CatalogueScreen({ societeId, societeNom, boutiqueId='', 
 
   // ==================== RENDER ====================
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       {/* Header catalogue */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -681,7 +682,7 @@ export default function CatalogueScreen({ societeId, societeNom, boutiqueId='', 
           </ScrollView>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
